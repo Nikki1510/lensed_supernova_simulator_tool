@@ -116,7 +116,7 @@ class Lens:
         :return: the k-correction for the input redshift
         """
 
-        colours = pd.read_pickle('lenspopsplines.pkl')
+        colours = pd.read_pickle('../data/lenspopsplines.pkl')
         bands = colours[-2]
         if self.bandpass == 'i':
             z = bands['i_SDSS'][0][bands['i_SDSS'][1] != 0.0]

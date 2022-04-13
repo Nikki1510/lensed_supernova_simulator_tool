@@ -105,7 +105,7 @@ class LSST:
         if self.bandpass == 'i':
             zsrc_max = 1.4
 
-        zlens_zSN_theta = np.load("sample_zl_zsn_theta.npz")['zlens_zSN_theta']
+        zlens_zSN_theta = np.load("../data/sample_zl_zsn_theta.npz")['zlens_zSN_theta']
         zlens_zSN_theta = np.repeat(zlens_zSN_theta, 3, axis=0)
 
         z_source_list_ = []
@@ -126,7 +126,7 @@ class LSST:
         :return: 1D array containing the distribution of LSST inter night gaps between observations
         """
         if self.bandpass == 'i':
-            with open('internight_gaps_i.pickle', 'rb') as f:
+            with open('../data/internight_gaps_i.pickle', 'rb') as f:
                 inter_night_gap = pickle.load(f)
             return inter_night_gap
         return np.nan

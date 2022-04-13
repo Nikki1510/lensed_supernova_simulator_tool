@@ -300,7 +300,7 @@ class Microlensing:
         """
 
         kappa, gamma, s = kgs
-        database_name = 'microlensing/databases/microlensing_database_z_%i_%s.db' % (int(np.floor(source_redshift)),
+        database_name = '../data/microlensing/databases/microlensing_database_z_%i_%s.db' % (int(np.floor(source_redshift)),
                         np.char.zfill(str(int(np.around(100 * (source_redshift - int(np.floor(source_redshift)))))), 2))
 
         # connect to the database and get a cursor

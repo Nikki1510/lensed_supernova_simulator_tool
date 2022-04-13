@@ -11,7 +11,7 @@ from class_supernova import Supernova
 from class_microlensing import Microlensing
 from class_visualisation import Visualisation
 
-from microlensing.create_db import *
+# from microlensing.create_db import *
 
 
 def simulate_time_series_images(batch_size, batch, num_samples, num_images, inter_night_gap, z_source_list_, z_lens_list_,

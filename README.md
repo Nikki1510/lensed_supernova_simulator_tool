@@ -8,4 +8,5 @@ Software used in this project:
 
 * Lenstronomy (https://github.com/sibirrer/lenstronomy) 
 * SNCosmo (https://github.com/sncosmo/sncosmo)
+* LensPop (https://github.com/tcollett/LensPop)
 

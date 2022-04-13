@@ -7,4 +7,5 @@ This repository contains code to simulate time-series images of lensed supernova
 Software used in this project:
 
 * Lenstronomy (https://github.com/sibirrer/lenstronomy) 
+* SNCosmo (https://github.com/sncosmo/sncosmo)
 

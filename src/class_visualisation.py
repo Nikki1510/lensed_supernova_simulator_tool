@@ -168,6 +168,8 @@ class Visualisation:
             ax2.axvline(x=self.days[obs], color="black", lw=0.5, label="Observations" if obs == 0 else None, zorder=1)
         ax2.legend(loc=(1.01, 0.5), fontsize=18)
 
+        # plt.savefig("../results/figures/Lightcurves_doubles.pdf", transparent=True, bbox_inches='tight')
+
         plt.show()
 
     def plot_observations(self, time_series):

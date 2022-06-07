@@ -145,6 +145,8 @@ class LSST:
         plt.ylabel("Counts", fontsize=22)
         plt.title(r"Cadence for the LSST $i$-band", fontsize=25)
         plt.xlim(-10, 300)
+
+        # plt.savefig("../results/figures/Inter_night gaps_i_band.pdf", transparent=True, bbox_inches='tight')
         plt.show()
 
     def plot_redshifts(self, z_lens_list_, z_source_list_):

@@ -14,19 +14,31 @@ from astropy.cosmology import FlatLambdaCDM
         
 class Microlensing:
 
-    def __init__(self, lens_model_class, kwargs_lens, x_image, y_image, bandpass,
-                 theta_E, z_lens, z_source, cosmo):
+    def __init__(self, lens_model_class, kwargs_lens, x_image, y_image, theta_E, z_lens, z_source, cosmo, bandpasses):
+        """
+        This class computes the microlensing parameters kappa, gamma, and s, and calculates the microlensing
+        contribution to the supernova light curve.
+
+        :param lens_model_class: Lenstronomy object returned from LensModel containing the lens properties
+        :param kwargs_lens: list of keyword arguments for the PEMD and external shear lens model
+        :param x_image: numpy array of length [num_images] containing the x-positions of the SN images in arcsec
+        :param y_image: numpy array of length [num_images] containing the y-positions of the SN images in arcsec
+        :param theta_E: einstein radius of the lens galaxy (float)
+        :param z_lens: redshift of the lens galaxy (float)
+        :param z_source: redshift of the supernova (float)
+        :param cosmo: instance of astropy containing the background cosmology
+        :param bandpasses: list containing bandpasses that will be used, choose from 'g', 'r', 'i', 'z' and 'y'
+        """
 
         self.lens_model_class = lens_model_class
         self.kwargs_lens = kwargs_lens
         self.x_image = x_image
         self.y_image = y_image
-        self.bandpass = bandpass
-
         self.theta_E = theta_E
         self.z_lens = z_lens
         self.z_source = z_source
         self.cosmo = cosmo
+        self.bandpasses = bandpasses
 
     def get_kappa(self):
         """
@@ -254,7 +266,7 @@ class Microlensing:
         """
         Select one element (row) from the microlensing lightcurves database.
 
-        :param name: name of the database (dependent on the redshift of the source)
+        :param c: cursor to the database
         :param kappa: convergence (float)
         :param gamma: shear (float)
         :param s: smooth matter fraction (float)
@@ -273,13 +285,58 @@ class Microlensing:
                             'data_type': data_type,
                             'bandpass': bandpass,
                             'SN_model': SN_model}
-        try:
+
+        #n1time = time.time()
+        c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
+        #n2time = time.time()
+        #print(n2time - n1time)
+
+        """
+        else:
+
+            database_name = '../data/microlensing/databases/microlensing_database_z_1_30.db'
+            conn = sqlite3.connect(database_name)
+            c = conn.cursor()
+            file_name = "kappa:0.362_gamma:0.342_s:0.616_zsrc:1.30"
+
+            n1time = time.time()
+            line_id = np.random.randint(0, 5120528)
+            print("line_id: ", line_id)
+            condition = "filename = :filename AND line_id = :line_id"
+            condition_values = {'filename': file_name,
+                                'line_id': line_id}
+            n2time = time.time()
+            con_time = n2time - n1time
+            #print("con_time: ", con_time)
+
+            n1time = time.time()
+            c.execute("SELECT * FROM datapoints WHERE " + condition, condition_values)
+            n2time = time.time()
+            #print((n2time - n1time) + con_time)
+            result = c.fetchone()
+            print(result)
+
+            n1time = time.time()
+            c.execute("SELECT * FROM datapoints WHERE " + condition + " LIMIT 1", condition_values)
+            n2time = time.time()
+            #print((n2time - n1time) + con_time)
+            result = c.fetchone()
+            print(result)
+
+            # -----------------------
+            n1time = time.time()
+            condition = "filename = :filename AND data_type = :data_type AND SN_model = :SN_model"
+            condition_values = {'filename': file_name,
+                                'data_type': data_type,
+                                'SN_model': SN_model}
+
             c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-        except:
-            print("Error with database!")
-            print("filename: ", file_name)
-            print("kappa = ", kappa, ", gamma = ", gamma, ", s = ", s)
-            print("source redshift = ", source_redshift)
+            n2time = time.time()
+            #print(n2time - n1time)
+            # -----------------------
+
+            print(" ")
+        """
 
         result = c.fetchone()
 
@@ -299,19 +356,66 @@ class Microlensing:
                  micro_times: array containing the time stamps corresponding to the two arrays mentioned above
         """
 
+        timing1_start = time.time()
+        # =========================================== TIMING 1 ===========================================
+
         kappa, gamma, s = kgs
         database_name = '../data/microlensing/databases/microlensing_database_z_%i_%s.db' % (int(np.floor(source_redshift)),
                         np.char.zfill(str(int(np.around(100 * (source_redshift - int(np.floor(source_redshift)))))), 2))
+
+        # =========================================== TIMING 1 ===========================================
+        timing1_end = time.time()
+        self.mmtiming1.append(timing1_end - timing1_start)
+
+        timing2_start = time.time()
+        # =========================================== TIMING 2 ===========================================
 
         # connect to the database and get a cursor
         conn = sqlite3.connect(database_name)
         c = conn.cursor()
 
-        micro = self.query_database(c, kappa, gamma, s, source_redshift, 'micro', self.bandpass, SN_model)[5:]
-        macro = self.query_database(c, kappa, gamma, s, source_redshift, 'macro', self.bandpass, SN_model)[5:]
+        # =========================================== TIMING 2 ===========================================
+        timing2_end = time.time()
+        self.mmtiming2.append(timing2_end - timing2_start)
+
+        timing3_start = time.time()
+        # =========================================== TIMING 3 ===========================================
+
+
+        micro = self.query_database(c, kappa, gamma, s, source_redshift, 'micro', 'i', SN_model)[5:]
+
+        # =========================================== TIMING 3 ===========================================
+        timing3_end = time.time()
+        self.mmtiming3.append(timing3_end - timing3_start)
+
+        timing4_start = time.time()
+        # =========================================== TIMING 4 ===========================================
+
+
+        macro = self.query_database(c, kappa, gamma, s, source_redshift, 'macro', 'i', SN_model)[5:]
+
+        # =========================================== TIMING 4 ===========================================
+        timing4_end = time.time()
+        self.mmtiming4.append(timing4_end - timing4_start)
+
+        timing5_start = time.time()
+        # =========================================== TIMING 5 ===========================================
+
         time_range = self.query_database(c, kappa, gamma, s, source_redshift, 'time', 'none', 'none')[5:]
 
+        # =========================================== TIMING 5 ===========================================
+        timing5_end = time.time()
+        self.mmtiming5.append(timing5_end - timing5_start)
+
+        timing6_start = time.time()
+        # =========================================== TIMING 6 ===========================================
+
+
         micro_contribution = np.array(micro) - np.array(macro)
+
+        # =========================================== TIMING 6 ===========================================
+        timing6_end = time.time()
+        self.mmtiming6.append(timing6_end - timing6_start)
 
         return micro_contribution, np.array(macro), np.array(time_range)
 
@@ -329,6 +433,20 @@ class Microlensing:
                  macrolensing light curves
         """
 
+        mtiming1 = []
+        mtiming2 = []
+
+        self.mmtiming1 = []
+        self.mmtiming2 = []
+        self.mmtiming3 = []
+        self.mmtiming4 = []
+        self.mmtiming5 = []
+        self.mmtiming6 = []
+        self.mmtiming7 = []
+
+        timing1_start = time.time()
+        # =========================================== TIMING 1 ===========================================
+
         final_kgs = self.get_kgs_all_images(kappa, gamma, s)
         micro_z_source = np.around(find_nearest(np.arange(0, 1.45, 0.05), self.z_source), 2)[0]
 
@@ -340,13 +458,26 @@ class Microlensing:
         micro_contributions = []
         macro_contributions = []
         micro_times = []
+
+        # =========================================== TIMING 1 ===========================================
+        timing1_end = time.time()
+        mtiming1.append(timing1_end - timing1_start)
+
+        timing2_start = time.time()
+        # =========================================== TIMING 2 ===========================================
+
         for i in range(len(self.x_image)):
             micro, macro, time_range = self.micro_lightcurve(final_kgs[i], micro_z_source, SN_model)
             micro_contributions.append(micro)
             macro_contributions.append(macro)
             micro_times.append(time_range)
 
-        return micro_contributions, macro_contributions, micro_times
+        timing2_end = time.time()
+        mtiming2.append(timing2_end - timing2_start)
+        # =========================================== TIMING 2 ===========================================
+
+        return micro_contributions, macro_contributions, micro_times, mtiming1, mtiming2, \
+               self.mmtiming1, self.mmtiming2, self.mmtiming3, self.mmtiming4, self.mmtiming5, self.mmtiming6, self.mmtiming7,
 
     def micro_snapshot(self, micro_lightcurves, macro_lightcurves, micro_times, td_images, day, peak=False):
         """

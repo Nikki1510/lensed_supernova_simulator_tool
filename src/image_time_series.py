@@ -2,6 +2,7 @@
 import numpy as np
 import sys
 import time
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from astropy.cosmology import FlatLambdaCDM
 from scipy.sparse import csr_matrix
@@ -10,43 +11,69 @@ from class_lens import Lens
 from class_supernova import Supernova
 from class_microlensing import Microlensing
 from class_visualisation import Visualisation
+from class_telescope import Telescope
 
 # from microlensing.create_db import *
 
 
-def simulate_time_series_images(batch_size, batch, num_samples, num_images, inter_night_gap, z_source_list_, z_lens_list_,
-                                theta_E_list_, lsst, bandpass, add_microlensing, obs_lower_limit, obs_upper_limit,
-                                fixed_H0, Show, Save, path):
-    """
+def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_times, obs_filters, obs_all, z_source_list_,
+                                z_lens_list_, theta_E_list_, add_microlensing, telescope, bandpasses, obs_lower_limit,
+                                obs_upper_limit, fixed_H0, Show, Save, path):
 
+    """
     :param batch_size: number of lens systems that is saved together in a batch (int)
+    :param batch: the starting number of the batch
     :param num_samples: total number of lens systems to be generated (int)
     :param num_images: number of lensed supernova images. choose between 2 (for doubles) and 4 (for quads)
-    :param inter_night_gap: 1D array containing the distribution of LSST inter night gaps between observations
+    :param obs_times: list containing observation times for a sample of supernovae according to LSST Baseline v2.0
+    :param obs_filters: list containing filters for a sample of supernovae according to LSST Baseline v2.0
+    :param obs_all: list containing the observation times (mjd) of all objects together (in all bands)
     :param z_source_list_: array containing ~ 400,000 values of the source redshift
     :param z_lens_list_: array containing ~ 400,000 values of the lens redshift
     :param theta_E_list_: array containing ~ 400,000 values of the einstein radius
-    :param lsst:
-    :param bandpass:
-    :param add_microlensing:
-    :param obs_lower_limit:
-    :param obs_upper_limit:
-    :param fixed_H0:
-    :param Show:
-    :param Save:
-    :param path:
+    :param add_microlensing: bool. if True: include microlensing effects
+    :param telescope: telescope where the observations are modelled after. choose between 'LSST' and 'ZTF'
+    :param bandpasses: bands/filters used for the lensed supernova observations
+    :param obs_lower_limit: maximum number of observations (above which observations are cut off)
+    :param obs_upper_limit: minimum number of observations (below which systems are discarded)
+    :param fixed_H0: bool. if True: H0 is kept to a fixed value (evaluationsest). if False: H0 varies (training/test set)
+    :param Show: bool. if True: figures and print statements show the properties of the lensed SN systems
+    :param Save: bool. if True: output (time-series images and all properties) are saved in a pickle file
+    :param path: only applies if Save=True. path where output is saved to
     :return: Generates image time-series and saves them to a pickle file
     """
+
+    lsst = Telescope(telescope, bandpasses)
+    # Remove!
+    bandpass = 'i'
+
     start_time = time.time()
     #start_t = time.time()
     tqdm._instances.clear()
     pbar = tqdm(total=num_samples)
     counter = 0                     # Total number of attempts
-    # batch = 1                       # Number associated with the first batch
     attempts = 0                    # Counts number of attempts per configuration
     sample_index = 0                # Counts how many configurations have been used (including failed ones)
     index = 0                       # Counts how many successful configurations have been used
 
+    timing1 = []
+    timing2 = []
+    timing3 = []
+    timing4 = []
+    timing5 = []
+    timing6 = []
+    timing7 = []
+    timing8 = []
+    timing9 = []
+    timing10 = []
+    timing11 = []
+    mtiming1 = []
+    mtiming2 = []
+
+    mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7 = [], [], [], [], [], [], []
+
+    # =========================================== TIMING 1 ===========================================
+    timing1_start = time.time()
 
     days_distribution = []
 
@@ -65,18 +92,18 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
     # (Pick more samples since not all configurations will be successful)
     sample = np.random.choice(len(z_source_list_), size=6 * num_samples, replace=False)
 
-    if add_microlensing:
-        acceptance_macro = np.zeros(num_samples)
-        acceptance_micro = np.zeros(num_samples)
-
-    rejected_cadence_list = []
-    accepted_peak_list = []
-    rejected_cadence = 0
-    accepted_peak = 0
-
     # _______________________________________________________________________
 
+    timing1_end = time.time()
+    timing1.append(timing1_end - timing1_start)
+
+
     while index < num_samples:
+
+        # =========================================== TIMING 2 ===========================================
+        timing2_start = time.time()
+        # =========================================== TIMING 2 ===========================================
+
         counter += 1
         attempts += 1
 
@@ -102,9 +129,16 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
         source_x = np.random.uniform(-theta_E, theta_E)
         source_y = np.random.uniform(-theta_E, theta_E)
 
+        # =========================================== TIMING 2 ===========================================
+        timing2_end = time.time()
+        timing2.append(timing2_end - timing2_start)
+
+        timing3_start = time.time()
+        # =========================================== TIMING 3 ===========================================
+
         # Initiate the supernova and lens classes
-        supernova = Supernova(theta_E, z_lens, z_source, cosmo, source_x, source_y, bandpass)
-        lens = Lens(theta_E, z_lens, z_source, cosmo, bandpass)
+        supernova = Supernova(theta_E, z_lens, z_source, cosmo, source_x, source_y)
+        lens = Lens(theta_E, z_lens, z_source, cosmo)
 
         # _______________________________________________________________________
 
@@ -122,6 +156,13 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
         x_image, y_image, macro_mag = supernova.get_image_pos_magnification(lens_model_class, kwargs_lens,
                                                                             min_distance=lsst.deltaPix,
                                                                             search_window=lsst.numPix * lsst.deltaPix)
+
+        # =========================================== TIMING 3 ===========================================
+        timing3_end = time.time()
+        timing3.append(timing3_end - timing3_start)
+
+        timing4_start = time.time()
+        # =========================================== TIMING 4 ===========================================
 
         # _______________________________________________________________________
 
@@ -145,19 +186,16 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
         # Supernova light curve
         model, x1, c, MW_dust, M_observed = supernova.light_curve(z_source)
 
-        # Check peak brightness: detectable?
-        peak_brightness = model.bandmag(supernova.bandpass, time=0, magsys='ab')
-        peak_brightness -= 2.5 * np.log10(macro_mag)
-
-        if num_images == 2:
-            if len(peak_brightness[peak_brightness < lsst.limiting_magnitude]) < 2:
-                continue
-        elif num_images == 4:
-            if len(peak_brightness[peak_brightness < lsst.limiting_magnitude]) < 3:
+        # Check peak brightness and flux ratio: detectable?
+        if not supernova.check_detectability_peak(lsst, model, macro_mag, 0.0, False):
                 continue
 
-        if not add_microlensing:
-            accepted_peak += 1
+        # =========================================== TIMING 4  ===========================================
+        timing4_end = time.time()
+        timing4.append(timing4_end - timing4_start)
+
+        timing5_start = time.time()
+        # =========================================== TIMING 5 ===========================================
 
         # _______________________________________________________________________
 
@@ -166,8 +204,15 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
         if add_microlensing:
             # start_m = time.time()
 
-            microlensing = Microlensing(lens_model_class, kwargs_lens, x_image, y_image, bandpass,
-                                        theta_E, z_lens, z_source, cosmo)
+            microlensing = Microlensing(lens_model_class, kwargs_lens, x_image, y_image,
+                                        theta_E, z_lens, z_source, cosmo, bandpasses)
+
+            # =========================================== TIMING 5 ===========================================
+            timing5_end = time.time()
+            timing5.append(timing5_end - timing5_start)
+
+            timing6_start = time.time()
+            # =========================================== TIMING 6 ===========================================
 
             # Convergence
             micro_kappa = microlensing.get_kappa()
@@ -181,158 +226,160 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
             if np.any(np.isnan(micro_s)):
                 continue
 
+            # =========================================== TIMING 6 ===========================================
+            timing6_end = time.time()
+            timing6.append(timing6_end - timing6_start)
+
+            timing7_start = time.time()
+            # =========================================== TIMING 7 ===========================================
+
             # Load random microlensing light curves
-            micro_lightcurves, macro_lightcurves, micro_times = microlensing.micro_lightcurve_all_images(micro_kappa,
+            micro_lightcurves, macro_lightcurves, micro_times, mtiming1_, mtiming2_,\
+                mmtiming1_, mmtiming2_, mmtiming3_, mmtiming4_, mmtiming5_, mmtiming6_, mmtiming7_ = microlensing.micro_lightcurve_all_images(micro_kappa,
                                                                                                          micro_gamma,
                                                                                                          micro_s)
+            mtiming1.append(mtiming1_)
+            mtiming2.append(mtiming2_)
 
-            # end_m = time.time()
-            # print("Microlensing part: ", end_m - start_m, "seconds")
+            mmtiming1.append(mmtiming1_)
+            mmtiming2.append(mmtiming2_)
+            mmtiming3.append(mmtiming3_)
+            mmtiming4.append(mmtiming4_)
+            mmtiming5.append(mmtiming5_)
+            mmtiming6.append(mmtiming6_)
+            mmtiming7.append(mmtiming7_)
 
+            # =========================================== TIMING 7 ===========================================
+            timing7_end = time.time()
+            timing7.append(timing7_end - timing7_start)
 
-            """
-            # ---------------------------------------
-            # temporarily, for testing speed
-            micro_lightcurves1, macro_lightcurves1, micro_times1 = get_microlensing('microlensing/microlensing_database.db',
-                                                                                 kappa=0.956,
-                                                                                 gamma=0.952,
-                                                                                 s=0.616,
-                                                                                 source_redshift=0.8,
-                                                                                 bandpass='i')
-            micro_lightcurves2, macro_lightcurves2, micro_times2 = get_microlensing(
-                'microlensing/microlensing_database.db',
-                kappa=0.956,
-                gamma=0.952,
-                s=0.616,
-                source_redshift=0.8,
-                bandpass='i')
-
-            micro_lightcurves = np.array([micro_lightcurves1, micro_lightcurves2])
-            macro_lightcurves = np.array([macro_lightcurves1, macro_lightcurves2])
-            micro_times = np.array([micro_times1, micro_times2])
-            # ---------------------------------------
-            """
+            timing8_start = time.time()
+        # =========================================== TIMING 8 ===========================================
 
             # Calculate microlensing contribution at the peak
             micro_peak = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times, td_images,
                                                      0, peak=True)
 
+            # Check again if the peak brightness is detectable after microlensing
+            if not supernova.check_detectability_peak(lsst, model, macro_mag, micro_peak, add_microlensing):
+                continue
+
+            # =========================================== TIMING 8 ===========================================
+            timing8_end = time.time()
+            timing8.append(timing8_end - timing8_start)
 
         else:
             micro_kappa = np.nan
             micro_gamma = np.nan
             micro_s = np.nan
             micro_peak = 0.0
-
         # _______________________________________________________________________
 
         # Generate image time series
 
-        sigma_bkg = lsst.background_noise()
-        data_class, x_grid1d, y_grid1d, min_coordinate, max_coordinate = lsst.grid(sigma_bkg)
+        # For this lens system, try 20 different observation sequences until it is detectable
+        N_tries = 20
+        for cadence_try in range(N_tries):
 
-        time_series = []
-        days = []
-        day = model.mintime() + min(td_images) + 10
-        max_day = model.maxtime() + max(td_images)
+            # =========================================== TIMING 9 ===========================================
+            timing9_start = time.time()
 
-        peak_brightness_image = np.ones(len(x_image)) * 50
-        if add_microlensing:
-            peak_brightness_image_macro = np.ones(len(x_image)) * 50
+            # Draw randomly an observation sequence
+            obs_index = np.random.randint(0, len(obs_times))
+            # Start and end time of the lensed supernova
+            start_sn = model.mintime() + min(td_images)
+            end_sn = model.maxtime() + max(td_images)
+            # Start the observations randomly between the start of 1st season and end of 3rd one
+            offset = np.random.randint(min(obs_all), max(obs_times[obs_index]) + 2 * start_sn)
+            # Get the observations that fall in that time period
+            mask = [obs_times[obs_index] > offset]
+            days = obs_times[obs_index][mask]
+            filters = obs_filters[obs_index][mask]
 
-        for observation in range(obs_upper_limit):
+            if Show:
+                plt.figure(5)
+                plt.hist(obs_times[obs_index], bins=100)
+                plt.axvline(x=days[0], color='C3')
+                plt.show()
 
-            if day > max_day:
-                break
+            # Shift the observations back to the SN time frame
+            days -= (offset - start_sn)
 
-            days.append(day)
+            time_series = []
+            obs_days = []
+            obs_days_filters = []
 
-            # Calculate microlensing contribution to light curve on this specific point in time
-            if add_microlensing:
-                micro_day = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times,
-                                                        td_images, day)
-            else:
-                micro_day = np.nan
+            # Keep track of the brightness of each observation
+            brightness_obs = np.ones((obs_upper_limit, len(x_image))) * 50
 
-            # Calculate apparent magnitudes
-            app_mag_ps, peak_brightness_image = supernova.get_app_magnitude(model, day, macro_mag, td_images,
-                                                                            peak_brightness_image, micro_day,
-                                                                            add_microlensing)
+            for observation in range(obs_upper_limit):
 
-            if add_microlensing:
-                # Calculate brightness WITHOUT microlensing
-                app_mag_ps_macro, peak_brightness_image_macro = supernova.get_app_magnitude(model, day, macro_mag,
-                                                                td_images, peak_brightness_image_macro, np.nan, False)
+                if observation > len(days) - 1:
+                    break
 
-            # Calculate amplitude parameter
-            amp_ps = lsst.app_mag_to_amplitude(app_mag_ps)
+                day = days[observation]
+                band = filters[observation]
 
-            # Create the image and save it to the time-series list
-            image_sim = lsst.generate_image(x_image, y_image, amp_ps, data_class, lens_model_class, source_model_class,
-                                            lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light,
-                                            sigma_bkg)
-
-            time_series.append(image_sim)
-
-            # Determine next observation time
-            day += np.random.choice(inter_night_gap)
-
-        # _______________________________________________________________________
-
-        # Final cuts
-
-        # Count the acceptance fraction due to microlensing effects (on brightness & flux ratio)
-        if add_microlensing:
-            if num_images == 2:
-                flux_ratio = supernova.flux_ratio(model, macro_mag, micro_peak, add_microlensing)
-                flux_ratio_macro = supernova.flux_ratio(model, macro_mag, np.nan, False)
-                # Check if the macro magnified images pass the brightness cut
-                if len(peak_brightness_image_macro[peak_brightness_image_macro < lsst.limiting_magnitude]) == 2 and \
-                    flux_ratio_macro > 0.1 and flux_ratio_macro < 10:
-                    acceptance_macro[index] += 1
-
-                # Check if the micro magnified images pass the brightness cut
-                if len(peak_brightness_image[peak_brightness_image < lsst.limiting_magnitude]) == 2 and \
-                        flux_ratio > 0.1 and flux_ratio < 10:
-                    acceptance_micro[index] += 1
-
-        # Count the acceptance fraction due to inter-night gaps
-        # How many objects are rejected due to their brightness, after passing the peak-brightness cut?
-        # NOTE: for microlensing, new peak-brightness should be determined!
-
-        # If microlensing: determine the new peak brightness, and whether this passes the cut
-        if add_microlensing:
-            peak_brightness_micro = peak_brightness + micro_peak
-
-            if num_images == 2:
-                if len(peak_brightness_micro[peak_brightness_micro < lsst.limiting_magnitude]) < 2:
-                    continue
-            elif num_images == 4:
-                if len(peak_brightness_micro[peak_brightness_micro < lsst.limiting_magnitude]) < 3:
+                # For the r-filter, light curves with z > 1.5 are not defined. Skip these.
+                if band == 'r' and z_source > 1.5:
                     continue
 
-            accepted_peak += 1
+                if day > end_sn:
+                    break
 
-        # Now look at the brightest image: does it pass the cut?
-        # For doubles: 2 images/for quads: 3 images should be below (brighter than) the LSST limiting magnitude
-        if num_images == 2:
-            if len(peak_brightness_image[peak_brightness_image < lsst.limiting_magnitude]) < 2:
-                rejected_cadence += 1
-                continue
-        elif num_images == 4:
-            if len(peak_brightness_image[peak_brightness_image < lsst.limiting_magnitude]) < 3:
-                rejected_cadence += 1
+                obs_days.append(day)
+                obs_days_filters.append(band)
+
+                # Calculate microlensing contribution to light curve on this specific point in time
+                if add_microlensing:
+                    micro_day = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times,
+                                                            td_images, day)
+                else:
+                    micro_day = np.nan
+
+                # Calculate apparent magnitudes
+                app_mag_ps = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope, band,
+                                                         add_microlensing)
+                brightness_obs[observation] = app_mag_ps
+
+                # Calculate amplitude parameter
+                amp_ps = lsst.app_mag_to_amplitude(app_mag_ps, band)
+
+                # Create the image and save it to the time-series list
+                image_sim = lsst.generate_image(x_image, y_image, amp_ps, lens_model_class, source_model_class,
+                                                lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light, band)
+
+                time_series.append(image_sim)
+
+            # =========================================== TIMING 9 ===========================================
+            timing9_end = time.time()
+            timing9.append(timing9_end - timing9_start)
+
+            # _______________________________________________________________________
+
+            # Final cuts
+
+            # Determine whether the lensed SN is detectable, based on its brightness and flux ratio
+            if not supernova.check_detectability(lsst, model, macro_mag, brightness_obs, obs_days_filters, micro_peak,
+                                                 add_microlensing):
                 continue
 
-        # For doubles: check if flux ratio is larger than 0.1
-        flux_ratio = supernova.flux_ratio(model, macro_mag, micro_peak, add_microlensing)
-        if flux_ratio <= 0.1 or flux_ratio >= 10:
+            # Discard systems with fewer than obs_lower_limit images
+            L = len(time_series)
+            if L < obs_lower_limit:
+                continue
+
+            break
+
+        # Failed systems
+        if cadence_try == N_tries - 1:
             continue
 
-        # Discard systems with fewer than obs_lower_limit images
-        L = len(time_series)
-        if L < obs_lower_limit:
-            continue
+        # The observations are detectable! Save the number of cadence tries it required
+        print("Detectable! Number of cadence tries: ", cadence_try + 1)
+
+        timing10_start = time.time()
+        # =========================================== TIMING 10 ===========================================
 
         # Cut out anything above obs_upper_limit observations
         if L > obs_upper_limit:
@@ -346,6 +393,15 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
             for i in range(obs_upper_limit - L):
                 time_series.append(csr_matrix(filler))
 
+        # Compute the maximum brightness in each bandpass
+        obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, brightness_obs, obs_days_filters)
+
+        # =========================================== TIMING 10 ===========================================
+        timing10_end = time.time()
+        timing10.append(timing10_end - timing10_start)
+
+        timing11_start = time.time()
+        # =========================================== TIMING 11 ===========================================
         # _______________________________________________________________________
 
         if Show:
@@ -362,48 +418,42 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
             else:
                 micro_day_range = np.nan
 
-            visualise = Visualisation(time_delay_distance, td_images, theta_E, data_class, macro_mag, days)
+
+            sigma_bkg_i = lsst.single_band_properties('i')[2]
+            data_class_i = lsst.grid(sigma_bkg_i)[0]
+
+            visualise = Visualisation(time_delay_distance, td_images, theta_E, data_class_i, macro_mag, obs_days, obs_days_filters)
 
             # Print the properties of the lensed supernova system
-            visualise.print_properties(peak_brightness_image, z_lens, z_source, H_0, micro_peak)
+            visualise.print_properties(z_lens, z_source, H_0, micro_peak, obs_peak)
 
             # Plot time delay surface
             visualise.plot_td_surface(lens_model_class, kwargs_lens, source_x, source_y, x_image, y_image)
 
             # Plot light curve with observation epochs
-            visualise.plot_light_curves(model, supernova.bandpass, day_range, micro_day_range, add_microlensing)
+            visualise.plot_light_curves(model, day_range, micro_day_range, add_microlensing)
 
             # Display all observations:
             visualise.plot_observations(time_series)
 
         # ____________________________________________________________________________
 
-        if add_microlensing:
-            acceptance_fraction = acceptance_micro[index]/acceptance_macro[index]
-        else:
-            acceptance_fraction = 1.0
-
         # Save the desired quantities in the data frame
-        df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, peak_brightness_image,
+        df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak,
                          macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image, gamma_lens,
-                         e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
-                         acceptance_fraction)
+                         e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "LSST_numimages=" + str(int(num_images)) + "_band=" + str(bandpass) + "_fixedH0=" +
+                df.to_pickle(path + "LSST_numimages=" + str(int(num_images)) + "_fixedH0=" +
                 str(fixed_H0) + "_microlensing=" + str(add_microlensing) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame
                 df = create_dataframe(batch_size)
             batch += 1
-
-        days_distribution.append(len(days))
-        rejected_cadence_list.append(rejected_cadence)
-        accepted_peak_list.append(accepted_peak)
 
         # Update variables
         sample_index += 1
@@ -413,20 +463,21 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
         rejected_cadence = 0
         accepted_peak = 0
 
+        # =========================================== TIMING 11 ===========================================
+        timing11_end = time.time()
+        timing11.append(timing11_end - timing11_start)
+
     end_time = time.time()
     duration = end_time - start_time
 
-    #end_t = time.time()
-    #print("Total: ", end_t - start_t, "seconds")
+    print("Timing results")
+    print("Len: ", len(timing1), len(timing2), len(timing3), len(timing4), len(timing5), len(timing6), len(timing7),
+          len(timing8), len(timing9), len(timing10), len(timing11))
+    print(" ")
 
-    if add_microlensing and Save:
-        acceptance_fractions = np.array(acceptance_micro) / np.array(acceptance_macro)
-        np.savetxt(path + "data/Acceptance_fractions_microlensing.txt", acceptance_fractions)
-
-    acceptance_fraction_cadence = (np.array(accepted_peak_list) - np.array(rejected_cadence_list)) / np.array(accepted_peak_list)
-    if Save:
-        np.savetxt(path + "data/Acceptance_fractions_cadence.txt", acceptance_fraction_cadence)
-        np.savetxt(path + "data/max_obs_distribution.txt", days_distribution)
+    print("Mean time: ", np.mean(timing1), np.mean(timing2), np.mean(timing3), np.mean(timing4), np.mean(timing5),
+          np.mean(timing6), np.mean(timing7), np.mean(timing8), np.mean(timing9), np.mean(timing10), np.mean(timing11))
+    print(" ")
 
     print("Done!")
     print("Simulating images took ", np.around(duration), "seconds (", np.around(duration / 3600, 2), "hours) to complete.")
@@ -436,10 +487,35 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, inte
     print(" ")
     print(df)
 
+    return [timing1, timing2, timing3, timing4, timing5, timing6, timing7, timing8, timing9, timing10, timing11,
+            mtiming1, mtiming2], [mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7]
+
 
 def main():
+    telescope = 'LSST'
+    bandpasses = ['r', 'i', 'z', 'y']
+    num_samples = 1           # Total number of lens systems to be generated
+    batch_size = 1            # Number of lens systems that is saved together in a batch
+    batch = 1                 # Starting number of the batch
+    num_images = 2            # Choose between 2 (for doubles) and 4 (for quads)
+    obs_upper_limit = 40      # Upper limit of number of observations
+    obs_lower_limit = 5       # Lower limit of number of observations
+    fixed_H0 = True           # Bool, if False: vary H0. if True: fix H0 to 70 km/s/Mpc (for the evaluation set)
+    add_microlensing = False  # Bool, if False: Only macro magnification. if True: Add effects of microlensing
 
-    print("test")
+    Show = True               # Bool, if True: Show figures and print information about the lens systems
+    Save = False              # Bool, if True: Save image time-series
+    path = "../processed_data/Cadence_microlensing_evaluationset_doubles2/"  # Path to folder in which to save the results
+
+    lsst = Telescope(telescope, bandpasses)
+    z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.1)
+    obs_times, obs_filters = lsst.load_cadence(small_sample=True)
+    obs_all, obs_r, obs_i, obs_z, obs_y = lsst.get_total_obs_times(obs_times, obs_filters)
+
+    timings, mmtimings = simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_times,
+                                                     obs_filters, obs_all, z_source_list_, z_lens_list_, theta_E_list_,
+                                                     add_microlensing, telescope, bandpasses,
+                                                     obs_lower_limit, obs_upper_limit, fixed_H0, Show, Save, path)
 
 
 if __name__ == '__main__':

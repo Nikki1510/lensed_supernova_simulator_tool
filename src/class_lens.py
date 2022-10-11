@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
         
 class Lens:
 
-    def __init__(self, theta_E, z_lens, z_source, cosmo, bandpass):
+    def __init__(self, theta_E, z_lens, z_source, cosmo):
         """
         This class defines the lens galaxy that is responsible for the gravitational lensing.
 
@@ -24,8 +24,6 @@ class Lens:
         self.z_lens = z_lens
         self.z_source = z_source
         self.cosmo = cosmo
-        self.bandpass = bandpass
-
 
     def mass_model(self):
         """
@@ -118,9 +116,8 @@ class Lens:
 
         colours = pd.read_pickle('../data/lenspopsplines.pkl')
         bands = colours[-2]
-        if self.bandpass == 'i':
-            z = bands['i_SDSS'][0][bands['i_SDSS'][1] != 0.0]
-            kcor = bands['i_SDSS'][1][bands['i_SDSS'][1] != 0.0]
+        z = bands['i_SDSS'][0][bands['i_SDSS'][1] != 0.0]
+        kcor = bands['i_SDSS'][1][bands['i_SDSS'][1] != 0.0]
         kcorrection = interp1d(z, kcor, bounds_error=False, fill_value='extrapolate')
         return kcorrection(redshift)
 

@@ -7,8 +7,8 @@ import sncosmo
 import lenstronomy.Util.util as util
 from lenstronomy.Util import constants as const
 from matplotlib.lines import Line2D
-plt.rc("font", family="serif")
-plt.rc("text", usetex=True)
+# plt.rc("font", family="serif")
+# plt.rc("text", usetex=True)
 
         
 class Visualisation:

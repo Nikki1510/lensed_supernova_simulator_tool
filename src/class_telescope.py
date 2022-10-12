@@ -16,8 +16,8 @@ import lenstronomy.Util.image_util as image_util
 import pickle
 import scipy.stats as stats
 import pandas as pd
-plt.rc("font", family="serif")
-plt.rc("text", usetex=True)
+# plt.rc("font", family="serif")
+# plt.rc("text", usetex=True)
 
         
 class Telescope:

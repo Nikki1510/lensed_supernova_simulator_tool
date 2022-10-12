@@ -296,11 +296,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             days = obs_times[obs_index][mask]
             filters = obs_filters[obs_index][mask]
 
+
+            """
             if Show:
                 plt.figure(5)
                 plt.hist(obs_times[obs_index], bins=100)
                 plt.axvline(x=days[0], color='C3')
                 plt.show()
+            """
 
             # Shift the observations back to the SN time frame
             days -= (offset - start_sn)
@@ -340,7 +343,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                 # Calculate apparent magnitudes
                 app_mag_ps = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope, band,
                                                          add_microlensing)
-                brightness_obs[observation] = app_mag_ps
+                brightness_obs[observation] = np.array(app_mag_ps)
 
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_ps, band)
@@ -439,9 +442,10 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         # ____________________________________________________________________________
 
         # Save the desired quantities in the data frame
-        df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak,
-                         macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image, gamma_lens,
-                         e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak)
+        df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
+                         obs_days_filters, brightness_obs, macro_mag, source_x, source_y, td_images, time_delay_distance,
+                         x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma,
+                         micro_s, micro_peak)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
@@ -487,8 +491,10 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
     print(" ")
     print(df)
 
-    return [timing1, timing2, timing3, timing4, timing5, timing6, timing7, timing8, timing9, timing10, timing11,
-            mtiming1, mtiming2], [mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7]
+    return df
+
+    #return [timing1, timing2, timing3, timing4, timing5, timing6, timing7, timing8, timing9, timing10, timing11,
+    #        mtiming1, mtiming2], [mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7]
 
 
 def main():

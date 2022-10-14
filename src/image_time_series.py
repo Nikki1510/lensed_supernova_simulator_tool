@@ -143,7 +143,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         # _______________________________________________________________________
 
         # Lens specification
-        lens_model_class, kwargs_lens, gamma_lens, e1_lens, e2_lens, gamma1, gamma2 = lens.mass_model()
+        lens_model_class, kwargs_lens, gamma_lens, e1_lens, e2_lens, gamma1, gamma2 = lens.mass_model(model='SIE')
         if np.isnan(gamma_lens):
             continue
 

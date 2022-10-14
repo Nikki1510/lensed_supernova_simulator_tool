@@ -25,7 +25,7 @@ class Lens:
         self.z_source = z_source
         self.cosmo = cosmo
 
-    def mass_model(self):
+    def mass_model(self, model='PEMD'):
         """
         Uses Lenstronomy to calculate the mass model of the lens galaxy.
 
@@ -38,15 +38,25 @@ class Lens:
                  gamma2: component of external shear (float)
         """
         # Lens model
-        lens_model_list = ['PEMD', 'SHEAR']
+        if model == 'PEMD':
+            lens_model_list = ['PEMD', 'SHEAR']
+        elif model == 'SIE':
+            lens_model_list = ['SIE', 'SHEAR']
         phi_lens, q_lens = np.random.uniform(-np.pi / 2, np.pi / 2), np.random.normal(0.7, 0.15)
         if q_lens < 0 or q_lens > 1:
             return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         e1_lens, e2_lens = param_util.phi_q2_ellipticity(phi_lens, q_lens)
-        gamma_lens = np.random.normal(2.0, 0.1)
-        kwargs_spemd = {'theta_E': self.theta_E, 'gamma': gamma_lens, 'center_x': 0.0, 'center_y': 0.0,
-                        'e1': e1_lens, 'e2': e2_lens}
+
+        if model == 'PEMD':
+            gamma_lens = np.random.normal(2.0, 0.1)
+            kwargs_spemd = {'theta_E': self.theta_E, 'gamma': gamma_lens, 'center_x': 0.0, 'center_y': 0.0,
+                            'e1': e1_lens, 'e2': e2_lens}
+        elif model == 'SIE':
+            gamma_lens = 2.0
+            kwargs_spemd = {'theta_E': self.theta_E, 'center_x': 0.0, 'center_y': 0.0,
+                            'e1': e1_lens, 'e2': e2_lens}
+
         # External shear
         gamma1, gamma2 = param_util.shear_polar2cartesian(phi=np.random.uniform(-np.pi / 2, np.pi / 2),
                                                           gamma=np.random.uniform(0, 0.05))

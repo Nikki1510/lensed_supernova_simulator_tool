@@ -295,7 +295,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             mask = [obs_times[obs_index] > offset]
             days = obs_times[obs_index][mask]
             filters = obs_filters[obs_index][mask]
-
+            obs_start = days[0]
 
             """
             if Show:
@@ -374,6 +374,9 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
             break
 
+        obs_duration = obs_days[-1] - obs_days[0]
+        obs_end = obs_start + obs_duration
+
         # Failed systems
         if cadence_try == N_tries - 1:
             continue
@@ -447,7 +450,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
                          obs_days_filters, brightness_im, brightness_unresolved, macro_mag, source_x, source_y,
                          td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1,
-                         gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_observed)
+                         gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_observed, obs_start, obs_end)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:

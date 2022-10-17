@@ -11,11 +11,12 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 30)),
+    df = pd.DataFrame(np.zeros((batch_size, 32)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands',
                   'brightness_im', 'brightness_unresolved', 'macro_mag', 'source_x', 'source_y', 'time_delay',
                   'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens', 'time_stamps',
-                  'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour', 'Mb'])
+                  'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour',
+                  'Mb', 'obs_start', 'obs_end'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -39,7 +40,7 @@ def create_dataframe(batch_size):
 def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands,
                 brightness_im, brightness_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
-                stretch, colour, Mb):
+                stretch, colour, Mb, obs_start, obs_end):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -79,6 +80,8 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param stretch: stretch parameter associated with the supernova light curve (float)
     :param colour: colour parameter associated with the supernova light curve (float)
     :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
+    :param obs_start: MJD of the first observation (float)
+    :param obs_end: MJD of the last observation (float)
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -112,6 +115,8 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['stretch'][index % batch_size] = stretch
     df['colour'][index % batch_size] = colour
     df['Mb'][index % batch_size] = Mb
+    df['obs_start'][index % batch_size] = obs_start
+    df['obs_end'][index % batch_size] = obs_end
     return df
 
 

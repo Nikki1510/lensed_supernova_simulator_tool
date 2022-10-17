@@ -441,14 +441,13 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
         # ____________________________________________________________________________
 
-        # brightness_unresolved = []
-        # print(supernova.get_unresolved_brightness(brightness_im))
+        brightness_unresolved = supernova.get_unresolved_brightness(brightness_im)
 
         # Save the desired quantities in the data frame
         df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
-                         obs_days_filters, brightness_im, macro_mag, source_x, source_y, td_images, time_delay_distance,
-                         x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma,
-                         micro_s, micro_peak, x1, c, M_observed)
+                         obs_days_filters, brightness_im, brightness_unresolved, macro_mag, source_x, source_y,
+                         td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1,
+                         gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_observed)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:

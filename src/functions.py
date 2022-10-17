@@ -11,11 +11,11 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 29)),
+    df = pd.DataFrame(np.zeros((batch_size, 30)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands',
-                  'brightness_im', 'macro_mag', 'source_x', 'source_y', 'time_delay', 'time_delay_distance', 'image_x',
-                  'image_y', 'gamma_lens', 'e1_lens', 'e2_lens', 'time_stamps', 'g1_shear', 'g2_shear', 'micro_kappa',
-                  'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour', 'Mb'])
+                  'brightness_im', 'brightness_unresolved', 'macro_mag', 'source_x', 'source_y', 'time_delay',
+                  'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens', 'time_stamps',
+                  'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour', 'Mb'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -23,6 +23,7 @@ def create_dataframe(batch_size):
     df['obs_times'] = df['obs_times'].astype('object')
     df['obs_bands'] = df['obs_bands'].astype('object')
     df['brightness_im'] = df['brightness_im'].astype('object')
+    df['brightness_unresolved'] = df['brightness_unresolved'].astype('object')
     df['macro_mag'] = df['macro_mag'].astype('object')
     df['image_x'] = df['image_x'].astype('object')
     df['image_y'] = df['image_y'].astype('object')
@@ -36,7 +37,7 @@ def create_dataframe(batch_size):
 
 
 def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands,
-                brightness_im, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
+                brightness_im, brightness_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
                 stretch, colour, Mb):
     """
@@ -57,6 +58,8 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param obs_bands: array of length N_observations containing the bandpasses for each observation
     :param brightness_im: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
             observation and each image. Use in combination with obs_times and obs_bands.
+    :param brightness_unresolved: array of len N_observations, containing the apparent magnitude for all SN images together,
+            corresponding to the case of unresolved images
     :param macro_mag: array of length [num_images] with the macro magnification for each image
     :param source_x: x-position of the supernova relative to the lens galaxy in arcsec (float)
     :param source_y: y-position of the supernova relative to the lens galaxy in arcsec (float)
@@ -75,7 +78,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak
     :param stretch: stretch parameter associated with the supernova light curve (float)
     :param colour: colour parameter associated with the supernova light curve (float)
-    :param Mb: absolute magnitude of the unlensed supernova in the B band
+    :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -88,6 +91,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['obs_times'][index % batch_size] = obs_times
     df['obs_bands'][index % batch_size] = obs_bands
     df['brightness_im'][index % batch_size] = brightness_im
+    df['brightness_unresolved'][index % batch_size] = brightness_unresolved
     df['macro_mag'][index % batch_size] = macro_mag
     df['source_x'][index % batch_size] = source_x
     df['source_y'][index % batch_size] = source_y

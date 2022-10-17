@@ -329,10 +329,20 @@ class Supernova:
         # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
         return app_mag_ps  # , new_peak_brightness_image
 
-    #def get_unresolved_brightness(self, brightness_im):
-    #
-    #    for i in range(len(brightness_im[0])):
-    #        flux =
+    def get_unresolved_brightness(self, brightness_im):
+        """
+        Calculate the apparent magnitude for all images together (unresolved)
+        :param brightness_im: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image. Use in combination with obs_times and obs_bands.
+        :return: array of len N_observations containing the apparent magnitude from all images together
+        """
+
+        fluxes = 10**(brightness_im / -2.5)
+        fluxes_unresolved = np.sum(fluxes, axis=1)
+        mags_unresolved = -2.5 * np.log10(fluxes_unresolved)
+        mags_unresolved[mags_unresolved > 49.2] = np.nan
+
+        return mags_unresolved
 
 
 

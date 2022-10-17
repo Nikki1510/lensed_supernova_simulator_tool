@@ -329,6 +329,11 @@ class Supernova:
         # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
         return app_mag_ps  # , new_peak_brightness_image
 
+    #def get_unresolved_brightness(self, brightness_im):
+    #
+    #    for i in range(len(brightness_im[0])):
+    #        flux =
+
 
 
 def main():

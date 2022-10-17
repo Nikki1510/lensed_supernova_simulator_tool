@@ -313,7 +313,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             obs_days_filters = []
 
             # Keep track of the brightness of each observation
-            brightness_obs = np.ones((obs_upper_limit, len(x_image))) * 50
+            brightness_im = np.ones((obs_upper_limit, len(x_image))) * 50
 
             for observation in range(obs_upper_limit):
 
@@ -343,7 +343,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                 # Calculate apparent magnitudes
                 app_mag_ps = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope, band,
                                                          add_microlensing)
-                brightness_obs[observation] = np.array(app_mag_ps)
+                brightness_im[observation] = np.array(app_mag_ps)
 
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_ps, band)
@@ -363,7 +363,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             # Final cuts
 
             # Determine whether the lensed SN is detectable, based on its brightness and flux ratio
-            if not supernova.check_detectability(lsst, model, macro_mag, brightness_obs, obs_days_filters, micro_peak,
+            if not supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
                                                  add_microlensing):
                 continue
 
@@ -397,7 +397,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                 time_series.append(csr_matrix(filler))
 
         # Compute the maximum brightness in each bandpass
-        obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, brightness_obs, obs_days_filters)
+        obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, brightness_im, obs_days_filters)
 
         # =========================================== TIMING 10 ===========================================
         timing10_end = time.time()
@@ -441,11 +441,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
         # ____________________________________________________________________________
 
+        # brightness_unresolved = []
+        # print(supernova.get_unresolved_brightness(brightness_im))
+
         # Save the desired quantities in the data frame
         df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
-                         obs_days_filters, brightness_obs, macro_mag, source_x, source_y, td_images, time_delay_distance,
+                         obs_days_filters, brightness_im, macro_mag, source_x, source_y, td_images, time_delay_distance,
                          x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma,
-                         micro_s, micro_peak)
+                         micro_s, micro_peak, x1, c, M_observed)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:

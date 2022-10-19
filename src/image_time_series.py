@@ -44,8 +44,6 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
     """
 
     lsst = Telescope(telescope, bandpasses)
-    # Remove!
-    bandpass = 'i'
 
     start_time = time.time()
     #start_t = time.time()
@@ -120,11 +118,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             continue
 
         if fixed_H0:
-            H_0 = 70.0
+            H_0 = 67.8
         else:
             H_0 = np.random.uniform(20, 100)
 
-        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.3, Ob0=0.05)
+        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.315)
         time_delay_distance = get_time_delay_distance(z_source, z_lens, cosmo)
         source_x = np.random.uniform(-theta_E, theta_E)
         source_y = np.random.uniform(-theta_E, theta_E)
@@ -172,10 +170,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         if len(x_image) != num_images:
             continue
 
-        # Is maximum image separation between 0.5 and 4.0 arcsec?
+        # Is maximum image separation between 0.5 and 4.0 arcsec? (image multiplicity method)
         sep = supernova.separation(x_image, y_image)
 
         if sep < 0.5 or sep > 4.0:
+
+            # Check if it satisfies the magnification method
+
+
             continue
 
         # _______________________________________________________________________

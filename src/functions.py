@@ -11,12 +11,12 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 32)),
+    df = pd.DataFrame(np.zeros((batch_size, 36)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands',
                   'brightness_im', 'brightness_unresolved', 'macro_mag', 'source_x', 'source_y', 'time_delay',
                   'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens', 'time_stamps',
                   'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour',
-                  'Mb', 'obs_start', 'obs_end'])
+                  'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method', 'mag_method_peak', 'mag_method'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -40,7 +40,7 @@ def create_dataframe(batch_size):
 def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands,
                 brightness_im, brightness_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
-                stretch, colour, Mb, obs_start, obs_end):
+                stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -82,6 +82,12 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
     :param obs_start: MJD of the first observation (float)
     :param obs_end: MJD of the last observation (float)
+    :param mult_method_peak: Bool. if True: detected with the multiplicity method at peak (corresponds to detection
+            numbers in Wojtak et al.)
+    :param mult_method: Bool. if True: detected with multiplicity method in actual observations
+    :param mag_method_peak: Bool. if True: detected with the magnification method at peak (corresponds to detection
+            numbers in Wojtak et al.)
+    :param mag_method: Bool. if True: detected with magnification method in actual observations
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -117,6 +123,10 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['Mb'][index % batch_size] = Mb
     df['obs_start'][index % batch_size] = obs_start
     df['obs_end'][index % batch_size] = obs_end
+    df['mult_method_peak'][index % batch_size] = mult_method_peak
+    df['mult_method'][index % batch_size] = mult_method
+    df['mag_method_peak'][index % batch_size] = mag_method_peak
+    df['mag_method'][index % batch_size] = mag_method
     return df
 
 

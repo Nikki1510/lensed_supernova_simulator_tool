@@ -296,6 +296,8 @@ class Visualisation:
             margin = 22; wspace = 0.01; hspace = 0.4
         elif number == 8:
             margin = 23; wspace = 0.001; hspace = 0.5
+        else:
+            margin = 7; wspace = 0.1; hspace = 0.1; number = 1
 
         fig3, ax3 = plt.subplots(number, 5, figsize=(15, margin))
         ax3 = ax3.flatten()

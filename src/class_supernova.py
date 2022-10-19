@@ -225,6 +225,7 @@ class Supernova:
             elif num_images == 4:
                 if len(max_brightness[max_brightness < limiting_magnitude]) >= 3:
                     return True
+
         return False
 
     def brightest_obs_bands(self, telescope, macro_mag, brightness_obs, obs_filters):
@@ -329,7 +330,7 @@ class Supernova:
         # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
         return app_mag_ps  # , new_peak_brightness_image
 
-    def get_unresolved_brightness(self, brightness_im):
+    def get_unresolved_brightness(self, brightness_im, filler=np.nan):
         """
         Calculate the apparent magnitude for all images together (unresolved)
         :param brightness_im: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
@@ -338,9 +339,14 @@ class Supernova:
         """
 
         fluxes = 10**(brightness_im / -2.5)
-        fluxes_unresolved = np.sum(fluxes, axis=1)
+        try:
+            fluxes_unresolved = np.sum(fluxes, axis=1)
+        except:
+            fluxes_unresolved = np.sum(fluxes)
+
         mags_unresolved = -2.5 * np.log10(fluxes_unresolved)
-        mags_unresolved[mags_unresolved > 49.2] = np.nan
+        if not filler == None:
+            mags_unresolved[mags_unresolved > 49.2] = filler
 
         return mags_unresolved
 

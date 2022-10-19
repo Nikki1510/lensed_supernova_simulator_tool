@@ -88,7 +88,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
     # Sample num_samples from the joint z_lens, z_source, theta_E distribution
     # (Pick more samples since not all configurations will be successful)
-    sample = np.random.choice(len(z_source_list_), size=6 * num_samples, replace=False)
+    sample = np.random.choice(len(z_source_list_), size=10 * num_samples, replace=False)
 
     # _______________________________________________________________________
 
@@ -118,7 +118,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             continue
 
         if fixed_H0:
-            H_0 = 67.8
+            H_0 = 67.8  # Planck 2018 cosmology
         else:
             H_0 = np.random.uniform(20, 100)
 
@@ -160,24 +160,10 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         timing3.append(timing3_end - timing3_start)
 
         timing4_start = time.time()
-        # =========================================== TIMING 4 ===========================================
-
-        # _______________________________________________________________________
-
-        # Checks
+        # =========================================== TIMING 4 ==========================================
 
         # Is num_images equal to 2 for doubles and to 4 for quads?
         if len(x_image) != num_images:
-            continue
-
-        # Is maximum image separation between 0.5 and 4.0 arcsec? (image multiplicity method)
-        sep = supernova.separation(x_image, y_image)
-
-        if sep < 0.5 or sep > 4.0:
-
-            # Check if it satisfies the magnification method
-
-
             continue
 
         # _______________________________________________________________________
@@ -186,11 +172,44 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         td_images = lens.time_delays(lens_model_class, kwargs_lens, x_image, y_image)
 
         # Supernova light curve
-        model, x1, c, MW_dust, M_observed = supernova.light_curve(z_source)
+        model, x1, c, MW_dust, M_B = supernova.light_curve(z_source)
 
-        # Check peak brightness and flux ratio: detectable?
-        if not supernova.check_detectability_peak(lsst, model, macro_mag, 0.0, False):
-                continue
+        # _______________________________________________________________________
+
+        # ---- Check image multiplicity method ----
+        mult_method_peak = False
+
+        sep = supernova.separation(x_image, y_image)
+
+        # Is maximum image separation between 0.5 and 4.0 arcsec?
+        if sep > 0.5 and sep < 4.0:
+            # Check peak brightness and flux ratio: detectable?
+            if supernova.check_detectability_peak(lsst, model, macro_mag, 0.0, False):
+                mult_method_peak = True
+
+        # ---- Check magnification method ----
+        mag_method_peak = False
+
+        # Sample different times to get the brightest combined flux
+        time_range = np.linspace(min(td_images), max(td_images), 100)
+        app_mag_i_unresolved = 50
+        for t in time_range:
+            app_mag_i_temp = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, telescope,
+                                                         'i', add_microlensing)
+            app_mag_i_unresolved_temp = supernova.get_unresolved_brightness(app_mag_i_temp, filler=None)
+
+            if app_mag_i_unresolved_temp < app_mag_i_unresolved:
+                app_mag_i_unresolved = app_mag_i_unresolved_temp
+
+        M_i = model.source_peakabsmag(band='lssti', magsys='ab')
+        mag_gap = -0.7
+
+        # Checks whether eq. 1 from Wojtak et al. (2019) holds
+        if app_mag_i_unresolved < M_i + cosmo.distmod(z_lens).value + mag_gap:
+            mag_method_peak = True
+
+        if not any([mult_method_peak, mag_method_peak]):
+            continue
 
         # =========================================== TIMING 4  ===========================================
         timing4_end = time.time()
@@ -316,6 +335,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
             # Keep track of the brightness of each observation
             brightness_im = np.ones((obs_upper_limit, len(x_image))) * 50
+            app_mag_i_obs = np.ones((obs_upper_limit, len(x_image))) * 50
 
             for observation in range(obs_upper_limit):
 
@@ -345,7 +365,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                 # Calculate apparent magnitudes
                 app_mag_ps = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope, band,
                                                          add_microlensing)
+                app_mag_ps_i = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope,
+                                                           'i', add_microlensing)
+
                 brightness_im[observation] = np.array(app_mag_ps)
+                app_mag_i_obs[observation] = np.array(app_mag_ps_i)
 
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_ps, band)
@@ -365,26 +389,56 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             # Final cuts
 
             # Determine whether the lensed SN is detectable, based on its brightness and flux ratio
-            if not supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
-                                                 add_microlensing):
-                continue
+            # if not supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
+            #                                      add_microlensing):
+            #     continue
 
             # Discard systems with fewer than obs_lower_limit images
             L = len(time_series)
-            if L < obs_lower_limit:
-                continue
+            # if L < obs_lower_limit:
+            #     continue
 
             break
 
-        obs_duration = obs_days[-1] - obs_days[0]
+        try:
+            obs_duration = obs_days[-1] - obs_days[0]
+        except:
+            continue
         obs_end = obs_start + obs_duration
 
+        # _______________________________________________________________________
+
+        # Check detectability from observations
+
+        # ---- Check image multiplicity method ----
+        mult_method = False
+
+        if sep > 0.5 and sep < 4.0:
+            # Check peak brightness and flux ratio: detectable?
+            if supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
+                                                      add_microlensing):
+                mult_method = True
+
+        # ---- Check magnification method ----
+        mag_method = False
+
+        app_mag_i_obs_min = np.min(supernova.get_unresolved_brightness(app_mag_i_obs, filler=50))
+
+        if app_mag_i_obs_min < M_i + cosmo.distmod(z_lens).value + mag_gap:
+            mag_method = True
+
+        if Show:
+            print("Theoretically visible with image multiplicity method?           ", mult_method_peak)
+            print("Theoretically visible with magnification method?                ", mag_method_peak)
+            print("Observations allow for detection with image multiplicity method?", mult_method)
+            print("Observations allow for detection with magnification method?     ", mag_method)
+
         # Failed systems
-        if cadence_try == N_tries - 1:
-            continue
+        # if cadence_try == N_tries - 1:
+        #     continue
 
         # The observations are detectable! Save the number of cadence tries it required
-        print("Detectable! Number of cadence tries: ", cadence_try + 1)
+        # print("Detectable! Number of cadence tries: ", cadence_try + 1)
 
         timing10_start = time.time()
         # =========================================== TIMING 10 ===========================================
@@ -452,14 +506,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
                          obs_days_filters, brightness_im, brightness_unresolved, macro_mag, source_x, source_y,
                          td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1,
-                         gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_observed, obs_start, obs_end)
+                         gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_B, obs_start, obs_end,
+                         mult_method_peak, mult_method, mag_method_peak, mag_method)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "LSST_numimages=" + str(int(num_images)) + "_fixedH0=" +
-                str(fixed_H0) + "_microlensing=" + str(add_microlensing) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
+                df.to_pickle(path + "Baselinev20_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame
@@ -481,6 +535,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
     end_time = time.time()
     duration = end_time - start_time
 
+    """
     print("Timing results")
     print("Len: ", len(timing1), len(timing2), len(timing3), len(timing4), len(timing5), len(timing6), len(timing7),
           len(timing8), len(timing9), len(timing10), len(timing11))
@@ -489,6 +544,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
     print("Mean time: ", np.mean(timing1), np.mean(timing2), np.mean(timing3), np.mean(timing4), np.mean(timing5),
           np.mean(timing6), np.mean(timing7), np.mean(timing8), np.mean(timing9), np.mean(timing10), np.mean(timing11))
     print(" ")
+    """
 
     print("Done!")
     print("Simulating images took ", np.around(duration), "seconds (", np.around(duration / 3600, 2), "hours) to complete.")

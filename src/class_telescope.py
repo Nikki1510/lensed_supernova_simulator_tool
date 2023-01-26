@@ -189,12 +189,23 @@ class Telescope:
         if small_sample:
             with open('../data/catarina_cadence/file_train_wfd_nikki_000.pckl', 'rb') as f:
                 cadence = pickle.load(f)
+            with open('../data/catarina_cadence/file_train_wfd_nikki_metadata_000.pckl', 'rb') as f:
+                meta = pickle.load(f)
         else:
             with open('../data/catarina_cadence/file_test_wfd_nikki_000.pckl', 'rb') as f:
                 cadence = pickle.load(f)
+            with open('../data/catarina_cadence/file_test_wfd_nikki_metadata_000.pckl', 'rb') as f:
+                meta = pickle.load(f)
 
-        obs_times = []
-        obs_filters = []
+        ra = meta['RA']
+        dec = meta['DEC']
+        MW_BV = meta['MWEBV']
+
+        full_times = []
+        full_filters = []
+        full_skysig = []
+        full_zeropoint = []
+        full_psf = []
 
         tqdm._instances.clear()
         pbar = tqdm(total=len(cadence))
@@ -202,14 +213,33 @@ class Telescope:
         for c in range(len(cadence)):
             cadence_clean = _clean_obj_data(cadence[c])
             mask = np.nonzero(np.in1d(cadence_clean['filter'], self.bandpasses))[0]
-            obs_times_temp = cadence_clean[mask]['mjd']
-            obs_filters_temp = cadence_clean[mask]['filter']
-            obs_times.append(obs_times_temp)
-            obs_filters.append(obs_filters_temp)
+            full_times_temp = cadence_clean[mask]['mjd']
+            full_filters_temp = cadence_clean[mask]['filter']
+            full_times.append(full_times_temp)
+            full_filters.append(full_filters_temp)
+            full_skysig.append(cadence_clean[mask]['SKY_SIG'])
+            full_zeropoint.append(cadence_clean[mask]['ZEROPT'])
+            full_psf.append(cadence_clean[mask]['PSF_SIG1'])
 
             pbar.update(1)
 
-        return obs_times, obs_filters
+        return full_times, full_filters, full_skysig, full_zeropoint, ra, dec, MW_BV, full_psf
+
+    def get_weather(self, zeropoint, skysig, psf_sig):
+        """
+        Calculates the flux from the sky signal and the limiting magnitude (5 sigma depth)
+
+        :param zeropoint: instrument zeropoint in magnitudes (weather dependent)
+        :param skysig: signal from the sky in electron counts/pixel (weather dependent)
+        :param psf_sig: sigma of a Gaussian fit to the PSF (weather dependent)
+        :return: flux_skysig in electron counts, limiting magnitude
+        """
+        # Calculate effective PSF area
+        psf_area = 4 * np.pi * psf_sig ** 2  # pixel area
+        flux_skysig = skysig * psf_area ** 0.5  # e- counts
+        lim_mag = zeropoint - 2.5 * np.log10(5 * flux_skysig)
+
+        return flux_skysig, lim_mag
 
     def get_total_obs_times(self, obs_times, obs_filters):
         """
@@ -244,19 +274,16 @@ class Telescope:
 
         return obs_all, obs_r, obs_i, obs_z, obs_y
 
-    def plot_cadence(self, obs_times, obs_all, obs_r, obs_i, obs_z, obs_y, bins=100):
+    def plot_cadence(self, bins=100, small_sample=True):
         """
         Plot the distribution of LSST inter night gaps and return the minimum and maximum observation dates.
 
-        :param obs_times: contains for each observation the observation times
-        :param obs_all: a list with the observation times of all objects together
-        :param obs_r: a list with the observation times in the r-band of all objects together
-        :param obs_i: a list with the observation times in the i-band of all objects together
-        :param obs_z: a list with the observation times in the z-band of all objects together
-        :param obs_y: a list with the observation times in the y-band of all objects together
         :param bins: the number of bins of the histograms
         :return: a plot displaying a histogram of the inter night gap values
         """
+
+        obs_times, obs_filters, _, _, _, _, _, _ = self.load_cadence(small_sample=small_sample)
+        obs_all, obs_r, obs_i, obs_z, obs_y = self.get_total_obs_times(obs_times, obs_filters)
 
         plt.figure(figsize=(12, 4))
         plt.hist(obs_all, bins=bins, color='black', alpha=0.15, label=r"all")
@@ -271,7 +298,7 @@ class Telescope:
         # plt.savefig("../results/figures/Cadence_78159_objects.pdf", transparent=True, bbox_inches='tight')
         plt.show()
 
-    def plot_redshifts(self, z_lens_list_, z_source_list_):
+    def plot_redshifts(self):
         """
         Plot the distributions of the lens and the source redshifts for the lensed supernovae.
 
@@ -279,6 +306,9 @@ class Telescope:
         :param z_source_list_: array containing the source redshift values used in the simulation
         :return: a plot displaying a KDE of the source and lens redshift distributions
         """
+
+        z_source_list_, z_lens_list_, theta_E_list_ = self.load_z_theta(theta_min=0.05)
+
         fig, ax = plt.subplots(1, 1, figsize=(8, 4))
         sns.kdeplot(z_lens_list_, ax=ax, lw=3, color="#2e6edb", fill=True, label="Lens redshift")
         sns.kdeplot(z_source_list_, ax=ax, lw=3, color="C2", fill=True, label="Source redshift")

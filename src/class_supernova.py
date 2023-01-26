@@ -185,7 +185,7 @@ class Supernova:
                     return True
         return False
 
-    def check_detectability(self, telescope, model, macro_mag, brightness_obs, obs_filters, micro_peak, add_microlensing):
+    def check_detectability(self, telescope, model, macro_mag, brightness_obs, limiting_mags, obs_filters, micro_peak, add_microlensing):
         """
         Check whether the lensed SN peak brightness and flux ratio can be detected by the telescope.
         If it is detectable in any filter, return True.
@@ -194,6 +194,7 @@ class Supernova:
         :param model: SNcosmo model for the supernova light curve
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
         :param brightness_obs: array of length [num_observations, num_images] containing the brightness of each observation
+        :param limiting_mags: array of length [num_observations] containing the limiting magnitudes (5 sigma depths)
         :param obs_filters: array of length [num_observations] containing the filter used for each observation
         :param micro_peak: array of length [num_images] containing the microlensing contributions at peak
         :param add_microlensing: bool. if False: no microlensing. if True: also add microlensing to the peak
@@ -216,16 +217,26 @@ class Supernova:
             if len(indices) == 0:
                 continue
             max_brightness = np.min(brightness_obs[indices], axis=0)
+            min_indices = np.argmin(brightness_obs[indices], axis=0)
 
-            limiting_magnitude = telescope.single_band_properties(band)[1]
+            # limiting_magnitude = telescope.single_band_properties(band)[1]
 
             if num_images == 2:
-                if len(max_brightness[max_brightness < limiting_magnitude]) == 2:
-                    return True
+                if max_brightness[0] < limiting_mags[indices][min_indices[0]]:
+                    if max_brightness[1] < limiting_mags[indices][min_indices[1]]:
+                        return True
             elif num_images == 4:
-                if len(max_brightness[max_brightness < limiting_magnitude]) >= 3:
+                count = 0
+                if max_brightness[0] < limiting_mags[indices][min_indices[0]]:
+                    count += 1
+                if max_brightness[1] < limiting_mags[indices][min_indices[1]]:
+                    count += 1
+                if max_brightness[2] < limiting_mags[indices][min_indices[2]]:
+                    count += 1
+                if max_brightness[3] < limiting_mags[indices][min_indices[3]]:
+                    count += 1
+                if count >= 3:
                     return True
-
         return False
 
     def brightest_obs_bands(self, telescope, macro_mag, brightness_obs, obs_filters):
@@ -302,9 +313,10 @@ class Supernova:
         model.set(x0=x0)
         return model, x1, c, MW_dust, M_observed
 
-    def get_app_magnitude(self, model, day, macro_mag, td_images, micro_day, telescope, band, add_microlensing):
+    def get_app_magnitude(self, model, day, macro_mag, td_images, micro_day, telescope, band, zeropoint,
+                          flux_skynoise, add_microlensing):
         """
-        Calculate the apparent magnitude for each supernova image at a certain time stamp.
+        Calculate the apparent magnitude + error for each supernova image at a certain time stamp.
 
         :param model: SNcosmo model for the supernova light curve
         :param day: time stamp of observation
@@ -313,6 +325,8 @@ class Supernova:
         :param micro_day: array of length [num_images] containing the microlensing contribution corresponding to the
         :param telescope: choose 'LSST' or 'ZTF'
         :param band: bandpass, choose between 'g', 'r', 'i', 'z', 'y' for LSST and 'g', 'r', 'i' for ZTF.
+        :param zeropoint: zeropoint of the specific observation in the specific band (takes into account weather)
+        :param flux_skynoise: the flux corresponding to the sky brightness (takes into account weather)
         :param add_microlensing: bool. if False: only compute macro magnification. if True: also add microlensing
                 contributions to the light curves
         :return: app_mag_ps: array of length [num_images] containing the apparent magnitude for each image
@@ -321,24 +335,39 @@ class Supernova:
 
         sncosmo_filter = self.get_sncosmo_filter(telescope, band)
 
-        app_mag_ps = model.bandmag(sncosmo_filter, time=day - td_images, magsys='ab')
+        app_mag_ps_test = model.bandmag(sncosmo_filter, time=day - td_images, magsys='ab')
+        app_mag_ps_test -= 2.5 * np.log10(macro_mag)
+
+        flux_ps = model.bandflux(sncosmo_filter, time=day - td_images, zp=zeropoint, zpsys='ab')
+        # Apply macro magnification to image fluxes
+        flux_ps *= macro_mag
+        # Perturb the flux according to the flux error (from the sky signal)
+        new_flux_ps = np.random.normal(loc=flux_ps, scale=abs(flux_skynoise))
+        new_flux_ps[new_flux_ps <= 0] = 10
+
+        # Convert to magnitudes
+        app_mag_ps = zeropoint - 2.5*np.log10(new_flux_ps)
         app_mag_ps = np.nan_to_num(app_mag_ps, nan=np.inf)
-        app_mag_ps -= 2.5 * np.log10(macro_mag)
+        app_mag_error = abs(-2.5 * flux_skynoise / (new_flux_ps * np.log(10)))
+
+        app_mag_ps[app_mag_ps_test > 30] = np.inf
+        app_mag_error[app_mag_ps_test > 30] = np.nan
+
         if add_microlensing:
             app_mag_ps += micro_day
 
         # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
-        return app_mag_ps  # , new_peak_brightness_image
+        return app_mag_ps, app_mag_error  # , new_peak_brightness_image
 
-    def get_unresolved_brightness(self, brightness_im, filler=np.nan):
+    def get_mags_unresolved(self, obs_mag, filler=np.nan):
         """
         Calculate the apparent magnitude for all images together (unresolved)
-        :param brightness_im: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+        :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
             observation and each image. Use in combination with obs_times and obs_bands.
         :return: array of len N_observations containing the apparent magnitude from all images together
         """
 
-        fluxes = 10**(brightness_im / -2.5)
+        fluxes = 10**(obs_mag / -2.5)
         try:
             fluxes_unresolved = np.sum(fluxes, axis=1)
         except:

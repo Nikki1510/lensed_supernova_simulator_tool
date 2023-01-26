@@ -16,9 +16,8 @@ from class_telescope import Telescope
 # from microlensing.create_db import *
 
 
-def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_times, obs_filters, obs_all, z_source_list_,
-                                z_lens_list_, theta_E_list_, add_microlensing, telescope, bandpasses, obs_lower_limit,
-                                obs_upper_limit, fixed_H0, Show, Save, path):
+def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_microlensing, obs_lower_limit,
+                                obs_upper_limit, fixed_H0, lsst, Show, Save, path):
 
     """
     :param batch_size: number of lens systems that is saved together in a batch (int)
@@ -43,7 +42,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
     :return: Generates image time-series and saves them to a pickle file
     """
 
-    lsst = Telescope(telescope, bandpasses)
+    # Load in data sets
+    z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.05)
+    # Change to small_sample=False!!!
+    full_times, full_filters, full_skysig, full_zeropoint, full_ra, full_dec, full_MW_BV, full_psf = lsst.load_cadence(small_sample=True)
+    full_times_all, _, _, _, _ = lsst.get_total_obs_times(full_times, full_filters)
 
     start_time = time.time()
     #start_t = time.time()
@@ -194,9 +197,9 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         time_range = np.linspace(min(td_images), max(td_images), 100)
         app_mag_i_unresolved = 50
         for t in time_range:
-            app_mag_i_temp = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, telescope,
-                                                         'i', add_microlensing)
-            app_mag_i_unresolved_temp = supernova.get_unresolved_brightness(app_mag_i_temp, filler=None)
+            app_mag_i_temp, _ = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, lsst.telescope,
+                                                         'i', 27.79, 1, add_microlensing)
+            app_mag_i_unresolved_temp = supernova.get_mags_unresolved(app_mag_i_temp, filler=None)
 
             if app_mag_i_unresolved_temp < app_mag_i_unresolved:
                 app_mag_i_unresolved = app_mag_i_unresolved_temp
@@ -226,7 +229,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             # start_m = time.time()
 
             microlensing = Microlensing(lens_model_class, kwargs_lens, x_image, y_image,
-                                        theta_E, z_lens, z_source, cosmo, bandpasses)
+                                        theta_E, z_lens, z_source, cosmo, lsst.bandpasses)
 
             # =========================================== TIMING 5 ===========================================
             timing5_end = time.time()
@@ -306,16 +309,17 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             timing9_start = time.time()
 
             # Draw randomly an observation sequence
-            obs_index = np.random.randint(0, len(obs_times))
+            obs_index = np.random.randint(0, len(full_times))
             # Start and end time of the lensed supernova
             start_sn = model.mintime() + min(td_images)
             end_sn = model.maxtime() + max(td_images)
             # Start the observations randomly between the start of 1st season and end of 3rd one
-            offset = np.random.randint(min(obs_all), max(obs_times[obs_index]) + 2 * start_sn)
+            offset = np.random.randint(min(full_times_all), max(full_times[obs_index]) + 2 * start_sn)
             # Get the observations that fall in that time period
-            mask = [obs_times[obs_index] > offset]
-            days = obs_times[obs_index][mask]
-            filters = obs_filters[obs_index][mask]
+            mask = [full_times[obs_index] > offset]
+            days = full_times[obs_index][mask]
+            filters = full_filters[obs_index][mask]
+            coords = np.array([full_ra[obs_index], full_dec[obs_index]])
             obs_start = days[0]
 
             """
@@ -331,10 +335,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
             time_series = []
             obs_days = []
-            obs_days_filters = []
+            obs_filters = []
+            obs_zeropoint = []
+            obs_skysig = []
+            obs_lim_mag = []
 
             # Keep track of the brightness of each observation
-            brightness_im = np.ones((obs_upper_limit, len(x_image))) * 50
+            obs_mag = np.ones((obs_upper_limit, len(x_image))) * 50
+            obs_mag_error = []
             app_mag_i_obs = np.ones((obs_upper_limit, len(x_image))) * 50
 
             for observation in range(obs_upper_limit):
@@ -344,6 +352,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
                 day = days[observation]
                 band = filters[observation]
+                zeropoint = full_zeropoint[obs_index][mask][observation]
+                skysig = full_skysig[obs_index][mask][observation]
+                psf_sig = full_psf[obs_index][mask][observation]
+
+                flux_skysig, lim_mag = lsst.get_weather(zeropoint, skysig, psf_sig)
 
                 # For the r-filter, light curves with z > 1.5 are not defined. Skip these.
                 if band == 'r' and z_source > 1.5:
@@ -353,7 +366,10 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                     break
 
                 obs_days.append(day)
-                obs_days_filters.append(band)
+                obs_filters.append(band)
+                obs_zeropoint.append(zeropoint)
+                obs_skysig.append(flux_skysig)
+                obs_lim_mag.append(lim_mag)
 
                 # Calculate microlensing contribution to light curve on this specific point in time
                 if add_microlensing:
@@ -363,13 +379,14 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                     micro_day = np.nan
 
                 # Calculate apparent magnitudes
-                app_mag_ps = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope, band,
-                                                         add_microlensing)
-                app_mag_ps_i = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, telescope,
-                                                           'i', add_microlensing)
+                app_mag_ps, app_mag_error = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day,
+                                                                        lsst.telescope, band, zeropoint, flux_skysig, add_microlensing)
+                app_mag_ps_i, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, lsst.telescope,
+                                                           'i', zeropoint, flux_skysig, add_microlensing)
 
-                brightness_im[observation] = np.array(app_mag_ps)
+                obs_mag[observation] = np.array(app_mag_ps)
                 app_mag_i_obs[observation] = np.array(app_mag_ps_i)
+                obs_mag_error.append(app_mag_error)
 
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_ps, band)
@@ -379,6 +396,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                                                 lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light, band)
 
                 time_series.append(image_sim)
+
+            obs_zeropoint = np.array(obs_zeropoint)
+            obs_skysig = np.array(obs_skysig)
+            obs_lim_mag = np.array(obs_lim_mag)
+            obs_mag = obs_mag[:len(obs_days)]
 
             # =========================================== TIMING 9 ===========================================
             timing9_end = time.time()
@@ -402,9 +424,9 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
 
         try:
             obs_duration = obs_days[-1] - obs_days[0]
+            obs_end = obs_start + obs_duration
         except:
-            continue
-        obs_end = obs_start + obs_duration
+            obs_end = obs_start
 
         # _______________________________________________________________________
 
@@ -414,15 +436,15 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
         mult_method = False
 
         if sep > 0.5 and sep < 4.0:
-            # Check peak brightness and flux ratio: detectable?
-            if supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
+            # Check maximum brightness and flux ratio: detectable?
+            if supernova.check_detectability(lsst, model, macro_mag, obs_mag, obs_lim_mag, obs_filters, micro_peak,
                                                       add_microlensing):
                 mult_method = True
 
         # ---- Check magnification method ----
         mag_method = False
 
-        app_mag_i_obs_min = np.min(supernova.get_unresolved_brightness(app_mag_i_obs, filler=50))
+        app_mag_i_obs_min = np.min(supernova.get_mags_unresolved(app_mag_i_obs, filler=50))
 
         if app_mag_i_obs_min < M_i + cosmo.distmod(z_lens).value + mag_gap:
             mag_method = True
@@ -456,7 +478,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
                 time_series.append(csr_matrix(filler))
 
         # Compute the maximum brightness in each bandpass
-        obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, brightness_im, obs_days_filters)
+        obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, obs_mag, obs_filters)
 
         # =========================================== TIMING 10 ===========================================
         timing10_end = time.time()
@@ -484,7 +506,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             sigma_bkg_i = lsst.single_band_properties('i')[2]
             data_class_i = lsst.grid(sigma_bkg_i)[0]
 
-            visualise = Visualisation(time_delay_distance, td_images, theta_E, data_class_i, macro_mag, obs_days, obs_days_filters)
+            visualise = Visualisation(time_delay_distance, td_images, theta_E, data_class_i, macro_mag, obs_days, obs_filters)
 
             # Print the properties of the lensed supernova system
             visualise.print_properties(z_lens, z_source, H_0, micro_peak, obs_peak)
@@ -493,27 +515,29 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_
             visualise.plot_td_surface(lens_model_class, kwargs_lens, source_x, source_y, x_image, y_image)
 
             # Plot light curve with observation epochs
-            visualise.plot_light_curves(model, day_range, micro_day_range, add_microlensing)
+            visualise.plot_light_curves(model, day_range, micro_day_range, add_microlensing, obs_mag, obs_mag_error)
+            visualise.plot_light_curves_perband(model, day_range, micro_day_range, add_microlensing, obs_mag, obs_mag_error)
 
             # Display all observations:
             visualise.plot_observations(time_series)
 
         # ____________________________________________________________________________
 
-        brightness_unresolved = supernova.get_unresolved_brightness(brightness_im)
+        obs_mag_unresolved = supernova.get_mags_unresolved(obs_mag)
 
         # Save the desired quantities in the data frame
         df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
-                         obs_days_filters, brightness_im, brightness_unresolved, macro_mag, source_x, source_y,
+                         obs_filters, obs_mag, obs_mag_error, obs_mag_unresolved, macro_mag, source_x, source_y,
                          td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, days, gamma1,
                          gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_B, obs_start, obs_end,
-                         mult_method_peak, mult_method, mag_method_peak, mag_method)
+                         mult_method_peak, mult_method, mag_method_peak, mag_method, coords, obs_zeropoint, obs_skysig,
+                         obs_lim_mag)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "Baselinev20_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
+                df.to_pickle(path + "Baselinev20_new_weather_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame
@@ -578,13 +602,6 @@ def main():
 
     lsst = Telescope(telescope, bandpasses)
     z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.1)
-    obs_times, obs_filters = lsst.load_cadence(small_sample=True)
-    obs_all, obs_r, obs_i, obs_z, obs_y = lsst.get_total_obs_times(obs_times, obs_filters)
-
-    timings, mmtimings = simulate_time_series_images(batch_size, batch, num_samples, num_images, obs_times,
-                                                     obs_filters, obs_all, z_source_list_, z_lens_list_, theta_E_list_,
-                                                     add_microlensing, telescope, bandpasses,
-                                                     obs_lower_limit, obs_upper_limit, fixed_H0, Show, Save, path)
 
 
 if __name__ == '__main__':

@@ -11,20 +11,22 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 36)),
+    df = pd.DataFrame(np.zeros((batch_size, 41)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands',
-                  'brightness_im', 'brightness_unresolved', 'macro_mag', 'source_x', 'source_y', 'time_delay',
+                  'obs_mag', 'obs_mag_error', 'obs_mag_unresolved', 'macro_mag', 'source_x', 'source_y', 'time_delay',
                   'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens', 'time_stamps',
                   'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour',
-                  'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method', 'mag_method_peak', 'mag_method'])
+                  'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method', 'mag_method_peak', 'mag_method',
+                  'coords', 'obs_zeropoint', 'obs_skysig', 'obs_lim_mag'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
     df['obs_peak'] = df['obs_peak'].astype('object')
     df['obs_times'] = df['obs_times'].astype('object')
     df['obs_bands'] = df['obs_bands'].astype('object')
-    df['brightness_im'] = df['brightness_im'].astype('object')
-    df['brightness_unresolved'] = df['brightness_unresolved'].astype('object')
+    df['obs_mag'] = df['obs_mag'].astype('object')
+    df['obs_mag_error'] = df['obs_mag_error'].astype('object')
+    df['obs_mag_unresolved'] = df['obs_mag_unresolved'].astype('object')
     df['macro_mag'] = df['macro_mag'].astype('object')
     df['image_x'] = df['image_x'].astype('object')
     df['image_y'] = df['image_y'].astype('object')
@@ -33,14 +35,19 @@ def create_dataframe(batch_size):
     df['micro_gamma'] = df['micro_gamma'].astype('object')
     df['micro_s'] = df['micro_s'].astype('object')
     df['micro_peak'] = df['micro_peak'].astype('object')
+    df['coords'] = df['coords'].astype('object')
+    df['obs_zeropoint'] = df['obs_zeropoint'].astype('object')
+    df['obs_skysig'] = df['obs_skysig'].astype('object')
+    df['obs_lim_mag'] = df['obs_lim_mag'].astype('object')
 
     return df
 
 
 def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands,
-                brightness_im, brightness_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
+                obs_mag, obs_mag_error, obs_mag_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, days, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
-                stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method):
+                stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method,
+                coords, obs_zeropoint, obs_skysig, obs_lim_mag):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -57,9 +64,10 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
            the supernova images for each filter/bandpass
     :param obs_times: array of length N_observations containing the time stamps of each observation
     :param obs_bands: array of length N_observations containing the bandpasses for each observation
-    :param brightness_im: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+    :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
             observation and each image. Use in combination with obs_times and obs_bands.
-    :param brightness_unresolved: array of len N_observations, containing the apparent magnitude for all SN images together,
+    :param obs_mag_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+    :param obs_mag_unresolved: array of len N_observations, containing the apparent magnitude for all SN images together,
             corresponding to the case of unresolved images
     :param macro_mag: array of length [num_images] with the macro magnification for each image
     :param source_x: x-position of the supernova relative to the lens galaxy in arcsec (float)
@@ -99,8 +107,9 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['obs_peak'][index % batch_size] = obs_peak
     df['obs_times'][index % batch_size] = obs_times
     df['obs_bands'][index % batch_size] = obs_bands
-    df['brightness_im'][index % batch_size] = brightness_im
-    df['brightness_unresolved'][index % batch_size] = brightness_unresolved
+    df['obs_mag'][index % batch_size] = obs_mag
+    df['obs_mag_error'][index % batch_size] = obs_mag_error
+    df['obs_mag_unresolved'][index % batch_size] = obs_mag_unresolved
     df['macro_mag'][index % batch_size] = macro_mag
     df['source_x'][index % batch_size] = source_x
     df['source_y'][index % batch_size] = source_y
@@ -127,6 +136,10 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['mult_method'][index % batch_size] = mult_method
     df['mag_method_peak'][index % batch_size] = mag_method_peak
     df['mag_method'][index % batch_size] = mag_method
+    df['coords'][index % batch_size] = coords
+    df['obs_zeropoint'][index % batch_size] = obs_zeropoint
+    df['obs_skysig'][index % batch_size] = obs_skysig
+    df['obs_lim_mag'][index % batch_size] = obs_lim_mag
     return df
 
 

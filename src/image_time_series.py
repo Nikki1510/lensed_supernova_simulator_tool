@@ -12,17 +12,18 @@ from class_supernova import Supernova
 from class_microlensing import Microlensing
 from class_visualisation import Visualisation
 from class_telescope import Telescope
+from class_timer import Timer
 
 # from microlensing.create_db import *
 
 
-def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_microlensing, obs_lower_limit,
+def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_microlensing, obs_lower_limit,
                                 obs_upper_limit, fixed_H0, lsst, Show, Save, path):
 
     """
+    :param num_samples: total number of lens systems to be generated (int)
     :param batch_size: number of lens systems that is saved together in a batch (int)
     :param batch: the starting number of the batch
-    :param num_samples: total number of lens systems to be generated (int)
     :param num_images: number of lensed supernova images. choose between 2 (for doubles) and 4 (for quads)
     :param obs_times: list containing observation times for a sample of supernovae according to LSST Baseline v2.0
     :param obs_filters: list containing filters for a sample of supernovae according to LSST Baseline v2.0
@@ -42,41 +43,16 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
     :return: Generates image time-series and saves them to a pickle file
     """
 
-    # Load in data sets
-    z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.05)
-    # Change to small_sample=False!!!
-    full_times, full_filters, full_skysig, full_zeropoint, full_ra, full_dec, full_MW_BV, full_psf = lsst.load_cadence(small_sample=True)
-    full_times_all, _, _, _, _ = lsst.get_total_obs_times(full_times, full_filters)
-
+    timer = Timer()
+    timer.initiate('initiate')
     start_time = time.time()
-    #start_t = time.time()
+
     tqdm._instances.clear()
     pbar = tqdm(total=num_samples)
     counter = 0                     # Total number of attempts
     attempts = 0                    # Counts number of attempts per configuration
     sample_index = 0                # Counts how many configurations have been used (including failed ones)
     index = 0                       # Counts how many successful configurations have been used
-
-    timing1 = []
-    timing2 = []
-    timing3 = []
-    timing4 = []
-    timing5 = []
-    timing6 = []
-    timing7 = []
-    timing8 = []
-    timing9 = []
-    timing10 = []
-    timing11 = []
-    mtiming1 = []
-    mtiming2 = []
-
-    mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7 = [], [], [], [], [], [], []
-
-    # =========================================== TIMING 1 ===========================================
-    timing1_start = time.time()
-
-    days_distribution = []
 
     if batch_size > num_samples:
         print("Error: batch_size cannot be larger than num_samples!")
@@ -86,24 +62,34 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         print("Error: num_images should be equal to 2 (for doubles) or 4 (for quads)")
         sys.exit()
 
+
+
+    # Change to small_sample=False!!!
+    full_times, full_filters, full_skysig, full_zeropoint, full_ra, full_dec, full_MW_BV, full_psf = lsst.load_cadence(small_sample=True)
+    full_times_all, _, _, _, _ = lsst.get_total_obs_times(full_times, full_filters)
+
+    # Create telescope sky pointings
+    ra_pointings, dec_pointings = lsst.create_sky_pointings(N=num_images)
+
+    # Initialise OpSim Summary (SynOpSim) generator
+    gen = lsst.generate_opsim_summary(ra_pointings, dec_pointings)
+
     # Create Pandas dataframe to store the data
     df = create_dataframe(batch_size)
+
+    # Load joint theta_E, z_lens, z_source distribution
+    z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.05)
 
     # Sample num_samples from the joint z_lens, z_source, theta_E distribution
     # (Pick more samples since not all configurations will be successful)
     sample = np.random.choice(len(z_source_list_), size=10 * num_samples, replace=False)
 
-    # _______________________________________________________________________
-
-    timing1_end = time.time()
-    timing1.append(timing1_end - timing1_start)
-
+    timer.end('initiate')
 
     while index < num_samples:
 
-        # =========================================== TIMING 2 ===========================================
-        timing2_start = time.time()
-        # =========================================== TIMING 2 ===========================================
+        timer.initiate('general_properties')
+        # _______________________________________________________________________
 
         counter += 1
         attempts += 1
@@ -123,19 +109,16 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         if fixed_H0:
             H_0 = 67.8  # Planck 2018 cosmology
         else:
-            H_0 = np.random.uniform(20, 100)
+            H_0 = np.random.uniform(20.0, 100.0)
 
         cosmo = FlatLambdaCDM(H0=H_0, Om0=0.315)
         time_delay_distance = get_time_delay_distance(z_source, z_lens, cosmo)
         source_x = np.random.uniform(-theta_E, theta_E)
         source_y = np.random.uniform(-theta_E, theta_E)
 
-        # =========================================== TIMING 2 ===========================================
-        timing2_end = time.time()
-        timing2.append(timing2_end - timing2_start)
-
-        timing3_start = time.time()
-        # =========================================== TIMING 3 ===========================================
+        timer.end('general_properties')
+        timer.initiate('lens_SN_properties')
+        # _______________________________________________________________________
 
         # Initiate the supernova and lens classes
         supernova = Supernova(theta_E, z_lens, z_source, cosmo, source_x, source_y)
@@ -158,13 +141,6 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
                                                                             min_distance=lsst.deltaPix,
                                                                             search_window=lsst.numPix * lsst.deltaPix)
 
-        # =========================================== TIMING 3 ===========================================
-        timing3_end = time.time()
-        timing3.append(timing3_end - timing3_start)
-
-        timing4_start = time.time()
-        # =========================================== TIMING 4 ==========================================
-
         # Is num_images equal to 2 for doubles and to 4 for quads?
         if len(x_image) != num_images:
             continue
@@ -177,6 +153,8 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         # Supernova light curve
         model, x1, c, MW_dust, M_B = supernova.light_curve(z_source)
 
+        timer.end('lens_SN_properties')
+        timer.initiate('detection_criteria_1')
         # _______________________________________________________________________
 
         # ---- Check image multiplicity method ----
@@ -214,29 +192,21 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         if not any([mult_method_peak, mag_method_peak]):
             continue
 
-        # =========================================== TIMING 4  ===========================================
-        timing4_end = time.time()
-        timing4.append(timing4_end - timing4_start)
-
-        timing5_start = time.time()
-        # =========================================== TIMING 5 ===========================================
-
+        timer.end('detection_criteria_1')
         # _______________________________________________________________________
 
         # Microlensing contributions
 
         if add_microlensing:
-            # start_m = time.time()
+
+            timer.initiate('microlensing_1')
 
             microlensing = Microlensing(lens_model_class, kwargs_lens, x_image, y_image,
                                         theta_E, z_lens, z_source, cosmo, lsst.bandpasses)
 
-            # =========================================== TIMING 5 ===========================================
-            timing5_end = time.time()
-            timing5.append(timing5_end - timing5_start)
-
-            timing6_start = time.time()
-            # =========================================== TIMING 6 ===========================================
+            timer.end('microlensing_1')
+            timer.initiate('microlensing_2')
+            # _______________________________________________________________________
 
             # Convergence
             micro_kappa = microlensing.get_kappa()
@@ -250,35 +220,18 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
             if np.any(np.isnan(micro_s)):
                 continue
 
-            # =========================================== TIMING 6 ===========================================
-            timing6_end = time.time()
-            timing6.append(timing6_end - timing6_start)
-
-            timing7_start = time.time()
-            # =========================================== TIMING 7 ===========================================
+            timer.end('microlensing_2')
+            timer.initiate('microlensing_3')
+            # _______________________________________________________________________
 
             # Load random microlensing light curves
             micro_lightcurves, macro_lightcurves, micro_times, mtiming1_, mtiming2_,\
                 mmtiming1_, mmtiming2_, mmtiming3_, mmtiming4_, mmtiming5_, mmtiming6_, mmtiming7_ = microlensing.micro_lightcurve_all_images(micro_kappa,
                                                                                                          micro_gamma,
                                                                                                          micro_s)
-            mtiming1.append(mtiming1_)
-            mtiming2.append(mtiming2_)
-
-            mmtiming1.append(mmtiming1_)
-            mmtiming2.append(mmtiming2_)
-            mmtiming3.append(mmtiming3_)
-            mmtiming4.append(mmtiming4_)
-            mmtiming5.append(mmtiming5_)
-            mmtiming6.append(mmtiming6_)
-            mmtiming7.append(mmtiming7_)
-
-            # =========================================== TIMING 7 ===========================================
-            timing7_end = time.time()
-            timing7.append(timing7_end - timing7_start)
-
-            timing8_start = time.time()
-        # =========================================== TIMING 8 ===========================================
+            timer.end('microlensing_3')
+            timer.initiate('microlensing_4')
+            # _______________________________________________________________________
 
             # Calculate microlensing contribution at the peak
             micro_peak = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times, td_images,
@@ -288,9 +241,8 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
             if not supernova.check_detectability_peak(lsst, model, macro_mag, micro_peak, add_microlensing):
                 continue
 
-            # =========================================== TIMING 8 ===========================================
-            timing8_end = time.time()
-            timing8.append(timing8_end - timing8_start)
+            timer.end('microlensing_4')
+            # _______________________________________________________________________
 
         else:
             micro_kappa = np.nan
@@ -305,8 +257,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         N_tries = 20
         for cadence_try in range(N_tries):
 
-            # =========================================== TIMING 9 ===========================================
-            timing9_start = time.time()
+            timer.initiate('cadence')
 
             # Draw randomly an observation sequence
             obs_index = np.random.randint(0, len(full_times))
@@ -397,16 +348,13 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
 
                 time_series.append(image_sim)
 
+                # _______________________________________________________________________
+
+
             obs_zeropoint = np.array(obs_zeropoint)
             obs_skysig = np.array(obs_skysig)
             obs_lim_mag = np.array(obs_lim_mag)
             obs_mag = obs_mag[:len(obs_days)]
-
-            # =========================================== TIMING 9 ===========================================
-            timing9_end = time.time()
-            timing9.append(timing9_end - timing9_start)
-
-            # _______________________________________________________________________
 
             # Final cuts
 
@@ -420,7 +368,12 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
             # if L < obs_lower_limit:
             #     continue
 
+            timer.end('cadence')
+
             break
+            # _______________________________________________________________________
+
+        timer.initiate('detection_criteria_2')
 
         try:
             obs_duration = obs_days[-1] - obs_days[0]
@@ -462,8 +415,9 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         # The observations are detectable! Save the number of cadence tries it required
         # print("Detectable! Number of cadence tries: ", cadence_try + 1)
 
-        timing10_start = time.time()
-        # =========================================== TIMING 10 ===========================================
+        timer.end('detection_criteria_2')
+        timer.initiate('finalise')
+        # _______________________________________________________________________
 
         # Cut out anything above obs_upper_limit observations
         if L > obs_upper_limit:
@@ -480,12 +434,6 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         # Compute the maximum brightness in each bandpass
         obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, obs_mag, obs_filters)
 
-        # =========================================== TIMING 10 ===========================================
-        timing10_end = time.time()
-        timing10.append(timing10_end - timing10_start)
-
-        timing11_start = time.time()
-        # =========================================== TIMING 11 ===========================================
         # _______________________________________________________________________
 
         if Show:
@@ -552,23 +500,11 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
         rejected_cadence = 0
         accepted_peak = 0
 
-        # =========================================== TIMING 11 ===========================================
-        timing11_end = time.time()
-        timing11.append(timing11_end - timing11_start)
+        timer.end('finalise')
+        # _______________________________________________________________________
 
     end_time = time.time()
     duration = end_time - start_time
-
-    """
-    print("Timing results")
-    print("Len: ", len(timing1), len(timing2), len(timing3), len(timing4), len(timing5), len(timing6), len(timing7),
-          len(timing8), len(timing9), len(timing10), len(timing11))
-    print(" ")
-
-    print("Mean time: ", np.mean(timing1), np.mean(timing2), np.mean(timing3), np.mean(timing4), np.mean(timing5),
-          np.mean(timing6), np.mean(timing7), np.mean(timing8), np.mean(timing9), np.mean(timing10), np.mean(timing11))
-    print(" ")
-    """
 
     print("Done!")
     print("Simulating images took ", np.around(duration), "seconds (", np.around(duration / 3600, 2), "hours) to complete.")
@@ -578,10 +514,7 @@ def simulate_time_series_images(batch_size, batch, num_samples, num_images, add_
     print(" ")
     print(df)
 
-    return df
-
-    #return [timing1, timing2, timing3, timing4, timing5, timing6, timing7, timing8, timing9, timing10, timing11,
-    #        mtiming1, mtiming2], [mmtiming1, mmtiming2, mmtiming3, mmtiming4, mmtiming5, mmtiming6, mmtiming7]
+    return df, timer.timing_dict
 
 
 def main():

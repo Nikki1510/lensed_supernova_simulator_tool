@@ -283,6 +283,10 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             # Shift the observations back to the SN time frame
             opsim_times -= (obs_start - start_sn)
 
+            # Perform nightly coadds
+            opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness, N_coadds = \
+                lsst.coadds(opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness)
+
             # Save all important properties
             time_series = []
             obs_days = []
@@ -290,6 +294,7 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             obs_skybrightness = []
             obs_lim_mag = []
             obs_psf = []
+            obs_N_coadds = []
 
             # Save the SN brightness
             model_mag = []     # apparent magnitude without scatter
@@ -325,6 +330,8 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
                 obs_skybrightness.append(opsim_sky_brightness[observation])
                 obs_lim_mag.append(lim_mag)
                 obs_psf.append(opsim_psf[observation])
+                obs_N_coadds.append(N_coadds[observation])
+
 
                 # Calculate microlensing contribution to light curve on this specific point in time
                 if add_microlensing:
@@ -362,6 +369,7 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             obs_lim_mag = np.array(obs_lim_mag)
             obs_psf = np.array(obs_psf)
             obs_snr = np.array(obs_snr)
+            obs_N_coadds = np.array(obs_N_coadds)
 
             model_mag = np.array(model_mag)
             obs_mag = np.array(obs_mag)
@@ -497,13 +505,13 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
                          td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, gamma1,
                          gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_B, obs_start, obs_end,
                          mult_method_peak, mult_method, mag_method_peak, mag_method, coords, obs_skybrightness, obs_psf,
-                         obs_lim_mag)
+                         obs_lim_mag, obs_N_coadds)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "Baselinev30_unresolvederr_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
+                df.to_pickle(path + "Baselinev30_coadds_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame

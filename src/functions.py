@@ -11,14 +11,14 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 44)),
+    df = pd.DataFrame(np.zeros((batch_size, 45)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands', 'model_mag',
                   'obs_mag', 'obs_mag_error', 'obs_snr', 'obs_mag_unresolved', 'mag_unresolved_error', 'snr_unresolved',
                   'macro_mag', 'source_x', 'source_y', 'time_delay',
                   'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens',
                   'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour',
                   'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method', 'mag_method_peak', 'mag_method',
-                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag'])
+                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -43,6 +43,7 @@ def create_dataframe(batch_size):
     df['obs_skybrightness'] = df['obs_skybrightness'].astype('object')
     df['obs_psf'] = df['obs_psf'].astype('object')
     df['obs_lim_mag'] = df['obs_lim_mag'].astype('object')
+    df['obs_N_coadds'] = df['obs_N_coadds'].astype('object')
 
     return df
 
@@ -51,7 +52,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
                 obs_mag, obs_mag_error, obs_snr, obs_mag_unresolved, mag_unresolved_error, snr_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
                 stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method,
-                coords, obs_skybrightness, obs_psf, obs_lim_mag):
+                coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -109,6 +110,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param obs_skybrightness: array of length N_observations containing the sky brightness (in magnitudes)
     :param obs_psf: array of length N_observations containing the FWHM of the PSF for each observation (in arcsec)
     :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
+    :param obs_N_coadds: array of length N_observations with the number of coadds for each observation
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -156,6 +158,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['obs_skybrightness'][index % batch_size] = obs_skybrightness
     df['obs_psf'][index % batch_size] = obs_psf
     df['obs_lim_mag'][index % batch_size] = obs_lim_mag
+    df['obs_N_coadds'][index % batch_size] = obs_N_coadds
     return df
 
 

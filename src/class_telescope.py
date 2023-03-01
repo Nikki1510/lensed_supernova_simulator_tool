@@ -281,6 +281,76 @@ class Telescope:
 
         return times[indices], filters[indices], psf[indices], lim_mag[indices], sky_brightness[indices]
 
+    def coadds(self, opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness):
+        """
+        Calculates nightly coadds if observations are taken on the same day in the same filter.
+        :param opsim_times: array with observation times (days relative to the SN peak)
+        :param opsim_filters: array with filters/bandpasses corresponding to opsim_times
+        :param opsim_psf: array with PSF sizes
+        :param opsim_lim_mag: array with limiting magnitudes
+        :param opsim_sky_brightness: array with sky brightnesses
+        :return: arrays with observation times, filters, psf, coadded limiting magnitudes, sky brightness.
+        """
+
+        coadd_times, coadd_filters, coadd_psf, coadd_lim_mag, coadd_sky_brightness = [], [], [], [], []
+        IDs = np.arange(0, len(opsim_times))
+
+        N_coadds = []
+        ID_list = []
+
+        for t1 in range(len(opsim_times)):
+
+            # Check if observation was already coadded
+            if IDs[t1] in ID_list:
+                continue
+
+            # Add limiting magnitude, time, and ID
+            lim_mag_list = [opsim_lim_mag[t1]]
+            times_list = [opsim_times[t1]]
+            ID_list.append(IDs[t1])
+
+            for t2 in range(t1+1, len(opsim_times)):
+
+                # Same day?
+                if opsim_times[t2] - opsim_times[t1] >= 1:
+                    break
+
+                # Same filter?
+                if opsim_filters[t1] == opsim_filters[t2]:
+                    lim_mag_list.append(opsim_lim_mag[t2])
+                    times_list.append(opsim_times[t2])
+                    ID_list.append(IDs[t2])
+
+            # Perform coadds
+            coadd_lim_mag.append(self.calculate_coadd(lim_mag_list))
+            coadd_times.append(np.mean(times_list))
+            N_coadds.append(len(times_list))
+            coadd_filters.append(opsim_filters[t1])
+            coadd_psf.append(opsim_psf[t1])
+            coadd_sky_brightness.append(opsim_sky_brightness[t1])
+
+        coadd_lim_mag = np.array(coadd_lim_mag)
+        coadd_times = np.array(coadd_times)
+        coadd_filters = np.array(coadd_filters)
+        coadd_psf = np.array(coadd_psf)
+        coadd_sky_brightness = np.array(coadd_sky_brightness)
+        N_coadds = np.array(N_coadds)
+
+        return coadd_times, coadd_filters, coadd_psf, coadd_lim_mag, coadd_sky_brightness, N_coadds
+
+    def calculate_coadd(self, lim_mag_list):
+        """
+        Calculates the new limiting magnitude by combining the limiting magnitudes in lim_mag_list.
+        Formula from https://smtn-016.lsst.io
+
+        :param lim_mag_list: list containing the limiting magnitudes that need to be coadded
+        :return: the coadded limiting magnitude (float)
+        """
+
+        lim_mag_array = np.array(lim_mag_list)
+        lim_mag_new = 1.25 * np.log10(np.sum(10**(0.8 * lim_mag_array)))
+        return lim_mag_new
+
     def get_weather(self, zeropoint, skysig, psf_sig):
         """
         Calculates the flux from the sky signal and the limiting magnitude (5 sigma depth)

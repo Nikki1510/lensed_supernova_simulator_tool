@@ -15,6 +15,7 @@ from lenstronomy.PointSource.point_source import PointSource
 import lenstronomy.Util.image_util as image_util
 import pickle
 import scipy.stats as stats
+from opsimsummary import SynOpSim
 import pandas as pd
 # plt.rc("font", family="serif")
 # plt.rc("text", usetex=True)
@@ -22,7 +23,7 @@ import pandas as pd
         
 class Telescope:
 
-    def __init__(self, telescope, bandpasses):
+    def __init__(self, telescope, bandpasses, num_images):
         """
         This class defines the telescope properties.
 
@@ -40,6 +41,13 @@ class Telescope:
             self.deltaPix = 0.2                  # pixel size in arcsec (area per pixel = deltaPix**2)
             self.psf_type = 'GAUSSIAN'           # 'GAUSSIAN', 'PIXEL', 'NONE'
             self.patch_size = self.deltaPix * self.numPix
+
+        # Create telescope sky pointings
+        ra_pointings, dec_pointings = self.create_sky_pointings(N=num_images)
+
+        # Initialise OpSim Summary (SynOpSim) generator
+        print("Setting up OpSim Summary generator...")
+        self.gen = self.initialise_opsim_summary(ra_pointings, dec_pointings)
 
         # Create: elif telescope == 'ZTF'
 
@@ -113,7 +121,7 @@ class Telescope:
         # Read = 10 / self.exp_time / (self.num_exposures ** 0.5)
         sigma_bkg = obs_api.background_noise
 
-        return obs_api, limiting_magnitude, sigma_bkg
+        return obs_api, limiting_magnitude, sigma_bkg, zero_point
 
     def grid(self, sigma_bkg):
         """
@@ -178,52 +186,100 @@ class Telescope:
 
         return z_source_list_, z_lens_list_, theta_E_list_
 
-    def load_cadence(self, small_sample=False):
+    def create_sky_pointings(self, N, dec_low=-90, dec_high=40):
         """
-        Cadence simulations by Catarina Alves for supernovae in LSST.
+        Creates random points on a sphere (limited between dec_low and dec_high).
+        Acception fraction of points is around 2/3, so sample ~1.6 times as many points.
 
-        :param small_sample: bool. if True: use a smaller sample of 64 observation sequences
-                                   if False: use full set of 78159 observation sequences
-        :return: 1D array containing the distribution of LSST inter night gaps between observations.
+        :param N: number of desired points inside the LSST footprint. The actual initiated number is 1.6 times higher
+        :param dec_low: lower declination limit
+        :param dec_high: upper declination limit
+        :return: two arrays containing the x-coordinates (right ascension) and y-coordinates (declination) of random sky pointings
         """
-        if small_sample:
-            with open('../data/catarina_cadence/file_train_wfd_nikki_000.pckl', 'rb') as f:
-                cadence = pickle.load(f)
-            with open('../data/catarina_cadence/file_train_wfd_nikki_metadata_000.pckl', 'rb') as f:
-                meta = pickle.load(f)
+
+        if N < 10:
+            sample_number = int(N * 5)
         else:
-            with open('../data/catarina_cadence/file_test_wfd_nikki_000.pckl', 'rb') as f:
-                cadence = pickle.load(f)
-            with open('../data/catarina_cadence/file_test_wfd_nikki_metadata_000.pckl', 'rb') as f:
-                meta = pickle.load(f)
+            sample_number = int(N * 1.6)
 
-        ra = meta['RA']
-        dec = meta['DEC']
-        MW_BV = meta['MWEBV']
+        ra_points = np.random.uniform(low=0, high=360, size=sample_number)
+        dec_points = np.arcsin(2 * np.random.uniform(size=sample_number) - 1) / np.pi * 180
 
-        full_times = []
-        full_filters = []
-        full_skysig = []
-        full_zeropoint = []
-        full_psf = []
+        dec_selection = (dec_points > dec_low) & (dec_points < dec_high)
+        ra_points = ra_points[dec_selection]
+        dec_points = dec_points[dec_selection]
 
-        tqdm._instances.clear()
-        pbar = tqdm(total=len(cadence))
+        return ra_points, dec_points
 
-        for c in range(len(cadence)):
-            cadence_clean = _clean_obj_data(cadence[c])
-            mask = np.nonzero(np.in1d(cadence_clean['filter'], self.bandpasses))[0]
-            full_times_temp = cadence_clean[mask]['mjd']
-            full_filters_temp = cadence_clean[mask]['filter']
-            full_times.append(full_times_temp)
-            full_filters.append(full_filters_temp)
-            full_skysig.append(cadence_clean[mask]['SKY_SIG'])
-            full_zeropoint.append(cadence_clean[mask]['ZEROPT'])
-            full_psf.append(cadence_clean[mask]['PSF_SIG1'])
+    def initialise_opsim_summary(self, ra_pointings, dec_pointings):
+        """
+        Itialise the generator for OpSim Summary SynOpSim. This will allow to draw random cadence realisations.
+        :param ra_pointings: array with the x-coordinates (right ascension) of random sky pointings
+        :param dec_pointings: array with the y-coordinates (declination) of random sky pointings
+        :return: OpSim Summary generator for a given OpSim database and sky pointings
+        """
+        # Location of the OpSim database used for the cadence realisations
+        myopsimv3 = '../data/OpSim_databases/baseline_v3.0_10yrs.db'
 
-            pbar.update(1)
+        synopsim = SynOpSim.fromOpSimDB(myopsimv3, opsimversion='fbsv2', usePointingTree=True, use_proposal_table=False,
+                                  subset='unique_all')
 
-        return full_times, full_filters, full_skysig, full_zeropoint, ra, dec, MW_BV, full_psf
+        gen = synopsim.pointingsEnclosing(ra_pointings, dec_pointings, circRadius=0., pointingRadius=1.75,
+                                          usePointingTree=True)
+        return gen
+
+    def opsim_observation(self, gen):
+        """
+        Function to draw one random cadence realisation for 1 sky position from the OpSim database.
+        If a sky pointing is outside of the LSST footprint, the function continues until the point is in the footprint.
+        :param gen: OpSim Summary generator for a given OpSim database and sky pointings
+        :return: 2 floats with the right ascension and declination of the observation, and 5 arrays containing the
+        observation times (in MJD), filters, PSF FWHM ('seeingFwhmGeom'), limiting magnitude, and sky brightness for
+        10 years of LSST observations.
+        """
+
+        while True:
+
+            obs = next(gen)
+            opsim_ra = np.mean(obs['fieldRA'])
+            opsim_dec = np.mean(obs['fieldDec'])
+            opsim_times = np.array(obs['expMJD'])
+
+            if np.isnan(opsim_ra) or np.isnan(opsim_dec):
+                continue
+
+            if len(opsim_times) == 0:
+                continue
+
+            obs = obs.sort_values(by=['expMJD'])
+
+            opsim_times = np.array(obs['expMJD'])
+            opsim_filters = np.array(obs['filter'])
+            opsim_psf = np.array(obs['seeingFwhmGeom'])
+            opsim_lim_mag = np.array(obs['fiveSigmaDepth'])
+            opsim_sky_brightness = np.array(obs['filtSkyBrightness'])
+            break
+
+        print(" ")
+        return opsim_ra, opsim_dec, opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness
+
+    def select_observation_time_period(self, times, filters, psf, lim_mag, sky_brightness, mjd_low, mjd_high=61325):
+        """
+        Function to limit the LSST observations to a shorter time duration. The default selection excludes everything
+        after the third year of observations (MJD = 61325).
+        :param times: array with observation times (in MJD)
+        :param filters: array with filters/bandpasses
+        :param psf: array with PSF sizes
+        :param lim_mag: array with limiting magnitudes
+        :param sky_brightness: array with sky brightnesses
+        :param mjd_low: lower threshold (everything before this date will be discarded)
+        :param mjd_high: upper threshold (everything after this date will be discarded). Default: end of year 3
+        :return: the same arrays, limited to dates between mjd_low and mjd_high
+        """
+
+        indices = (times > mjd_low) & (times < mjd_high)
+
+        return times[indices], filters[indices], psf[indices], lim_mag[indices], sky_brightness[indices]
 
     def get_weather(self, zeropoint, skysig, psf_sig):
         """
@@ -417,7 +473,7 @@ class Telescope:
         :return: 2D array of (NumPix * DeltaPix)^2 pixels containing the image
         """
 
-        _, limiting_mag, sigma_bkg = self.single_band_properties(band)
+        _, limiting_mag, sigma_bkg, _ = self.single_band_properties(band)
         data_class, x_grid1d, y_grid1d, min_coordinate, max_coordinate = self.grid(sigma_bkg)
 
         seeing_params = self.get_seeing_params(band)

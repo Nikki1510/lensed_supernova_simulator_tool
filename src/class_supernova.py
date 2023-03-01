@@ -313,8 +313,7 @@ class Supernova:
         model.set(x0=x0)
         return model, x1, c, MW_dust, M_observed
 
-    def get_app_magnitude(self, model, day, macro_mag, td_images, micro_day, telescope, band, zeropoint,
-                          flux_skynoise, add_microlensing):
+    def get_app_magnitude(self, model, day, macro_mag, td_images, micro_day, telescope_class, band, lim_mag, add_microlensing):
         """
         Calculate the apparent magnitude + error for each supernova image at a certain time stamp.
 
@@ -323,43 +322,69 @@ class Supernova:
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
         :param td_images: array of length [num_images] containing the time delays between the supernova images
         :param micro_day: array of length [num_images] containing the microlensing contribution corresponding to the
-        :param telescope: choose 'LSST' or 'ZTF'
+        :param telescope_class: class of telescope ('LSST' or 'ZTF')
         :param band: bandpass, choose between 'g', 'r', 'i', 'z', 'y' for LSST and 'g', 'r', 'i' for ZTF.
-        :param zeropoint: zeropoint of the specific observation in the specific band (takes into account weather)
-        :param flux_skynoise: the flux corresponding to the sky brightness (takes into account weather)
+        :param lim_mag: limiting magnitude of the specific observation in the specific band (takes into account weather)
         :param add_microlensing: bool. if False: only compute macro magnification. if True: also add microlensing
                 contributions to the light curves
-        :return: app_mag_ps: array of length [num_images] containing the apparent magnitude for each image
-                 # new_peak_brightness_image: array of length [num_images] containing the currently brightest observations
+        :return: app_mag_model: array of length [num_images] containing the apparent magnitude from the model
+                 app_mag_obs: array of length [num_images] containing the observed (perturbed) apparent magnitude
+                 app_mag_error: array of length [num_images] containing the apparent magnitude error
         """
 
-        sncosmo_filter = self.get_sncosmo_filter(telescope, band)
+        sncosmo_filter = self.get_sncosmo_filter(telescope_class.telescope, band)
 
         app_mag_ps_test = model.bandmag(sncosmo_filter, time=day - td_images, magsys='ab')
         app_mag_ps_test -= 2.5 * np.log10(macro_mag)
 
+        zeropoint = telescope_class.single_band_properties(band)[3]
+
+        lim_flux = 10**((zeropoint - lim_mag)/2.5)
+        flux_error = lim_flux / 5
+
         flux_ps = model.bandflux(sncosmo_filter, time=day - td_images, zp=zeropoint, zpsys='ab')
         # Apply macro magnification to image fluxes
         flux_ps *= macro_mag
+        flux_ps[flux_ps < 0.0] = 0.0
         # Perturb the flux according to the flux error (from the sky signal)
-        new_flux_ps = np.random.normal(loc=flux_ps, scale=abs(flux_skynoise))
-        new_flux_ps[new_flux_ps <= 0] = 10
+        new_flux_ps = np.random.normal(loc=flux_ps, scale=abs(flux_error))
+        new_flux_ps[new_flux_ps < 0.0] = 0.0
+        new_flux_ps[flux_ps <= flux_error] = 0.0
+
+        # Calculate S/N
+        snr = new_flux_ps / flux_error
 
         # Convert to magnitudes
-        app_mag_ps = zeropoint - 2.5*np.log10(new_flux_ps)
-        app_mag_ps = np.nan_to_num(app_mag_ps, nan=np.inf)
-        app_mag_error = abs(-2.5 * flux_skynoise / (new_flux_ps * np.log(10)))
+        app_mag_model = zeropoint - 2.5 * np.log10(flux_ps)
+        app_mag_obs = zeropoint - 2.5*np.log10(new_flux_ps)
+        app_mag_obs = np.nan_to_num(app_mag_obs, nan=np.inf)
+        app_mag_obs[app_mag_obs >= 50] = np.inf
+        app_mag_error = abs(-2.5 * flux_error / (new_flux_ps * np.log(10)))
 
-        app_mag_ps[app_mag_ps_test > 30] = np.inf
-        app_mag_error[app_mag_ps_test > 30] = np.nan
+
+        """
+        print(" ")
+        print("model_mag = ", app_mag_model)
+        print("macro_magnification = ", macro_mag)
+        print("flux_ps = ", flux_ps)
+        print("lim_mag = ", lim_mag)
+        print("lim_flux = ", lim_flux)
+        print("flux_error = ", flux_error)
+        print("new_flux_ps = ", new_flux_ps)
+        print("new_mag = ", app_mag_obs)
+        print(" ")
+        """
+
+        app_mag_obs[app_mag_obs > 30] = np.inf
+        app_mag_error[app_mag_obs > 30] = np.nan
 
         if add_microlensing:
-            app_mag_ps += micro_day
+            app_mag_obs += micro_day
 
         # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
-        return app_mag_ps, app_mag_error  # , new_peak_brightness_image
+        return app_mag_model, app_mag_obs, app_mag_error, snr  # , new_peak_brightness_image
 
-    def get_mags_unresolved(self, obs_mag, filler=np.nan):
+    def get_mags_unresolved(self, obs_mag, telescope_class, obs_filters, obs_lim_mag, filler=np.nan):
         """
         Calculate the apparent magnitude for all images together (unresolved)
         :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
@@ -367,17 +392,53 @@ class Supernova:
         :return: array of len N_observations containing the apparent magnitude from all images together
         """
 
-        fluxes = 10**(obs_mag / -2.5)
-        try:
+        if len(obs_mag) == 0:
+            return np.nan
+
+        # Get zero points
+        zeropoints = np.ones_like(obs_mag)
+
+        if obs_mag.ndim == 2:
+            for f in range(len(zeropoints)):
+                zeropoints[f] *= telescope_class.single_band_properties(obs_filters[f])[3]
+        else:
+            zeropoints *= telescope_class.single_band_properties(obs_filters[0])[3]
+
+        # Get unresolved fluxes
+
+        fluxes = 10 ** ((zeropoints - obs_mag) / 2.5)
+        fluxes[obs_mag == np.inf] = 0.0
+
+        if obs_mag.ndim == 2:
             fluxes_unresolved = np.sum(fluxes, axis=1)
-        except:
+            zeropoints = zeropoints[:, 0]
+        else:
             fluxes_unresolved = np.sum(fluxes)
+            zeropoints = zeropoints[0]
 
-        mags_unresolved = -2.5 * np.log10(fluxes_unresolved)
+        # Get unresolved magnitudes
+
+        mags_unresolved = zeropoints - 2.5 * np.log10(fluxes_unresolved)
+
         if not filler == None:
-            mags_unresolved[mags_unresolved > 49.2] = filler
+            mags_unresolved[mags_unresolved >= 50] = filler
 
-        return mags_unresolved
+        # Get magnitude error
+
+        lim_flux = 10 ** ((zeropoints - obs_lim_mag) / 2.5)
+        flux_errors = lim_flux / 5
+
+        snr_unresolved = fluxes_unresolved / flux_errors
+
+        unresolved_mag_error = abs(-2.5 * flux_errors / (fluxes_unresolved * np.log(10)))
+
+        if obs_mag.ndim == 2:
+            unresolved_mag_error[unresolved_mag_error > 50] = 50
+        else:
+            if unresolved_mag_error > 50:
+                unresolved_mag_error = 50
+
+        return mags_unresolved, unresolved_mag_error, snr_unresolved
 
 
 

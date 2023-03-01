@@ -266,7 +266,7 @@ class Visualisation:
 
         plt.show()
 
-    def plot_light_curves_perband(self, model, day_range, micro_day_range, add_microlensing, obs_mag, obs_mag_error):
+    def plot_light_curves_perband(self, model, day_range, micro_day_range, add_microlensing, model_mag, obs_mag, obs_mag_error):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
@@ -278,11 +278,10 @@ class Visualisation:
         :param add_microlensing: bool, if False: only compute macro light curves, if True: add microlensing contributions
         :return: plots the individual light curves, combined light curve, and observation time stamps
         """
-        fig2, ax2 = plt.subplots(4, 1, figsize=(8, 12))
+        fig2, ax2 = plt.subplots(4, 2, figsize=(15, 12))
         fig2.gca().invert_yaxis()
         fig2.suptitle(r"Observations in each band", fontsize=25)
         fig2.subplots_adjust(hspace=0.3)
-        ax2 = ax2.flatten()
 
         colours = {'lsstg': '#377eb8', 'lsstr': '#4daf4a',
                    'lssti': '#e3c530', 'lsstz': '#ff7f00', 'lssty': '#e41a1c'}
@@ -292,7 +291,7 @@ class Visualisation:
 
         bands = ['lsstr', 'lssti', 'lsstz', 'lssty']
 
-        for b in range(len(ax2)):
+        for b in range(4):
 
             band = bands[b]
             max_obs, min_obs = 24, 24
@@ -301,33 +300,41 @@ class Visualisation:
             for im in range(len(self.td_images)):
                 mags = model.bandmag(band, time=day_range - self.td_images[im], magsys='ab')
                 mags -= 2.5 * np.log10(self.macro_mag[im])
-                ax2[b].plot(day_range, mags, color='black', alpha=0.5, lw=1.5, label=r"light curves in $i$-band" if im ==0 else None)
                 max_lc.append(np.max(mags[np.isfinite(mags)]))
                 min_lc.append(np.min(mags[np.isfinite(mags)]))
+                if im == 0:
+                    ax2[b, 0].plot(day_range, mags, color='black', alpha=0.5, lw=1.5)
+                elif im == 1:
+                    ax2[b, 1].plot(day_range, mags, color='black', alpha=0.5, lw=1.5)
 
             for obs in range(len(self.obs_days)):
                 day = self.obs_days[obs]
                 obs_band = 'lsst' + self.obs_days_filters[obs]
 
                 if obs_band == band:
-                    for i in range(len(self.td_images)):
-                        ax2[b].plot(day, obs_mag[obs][i], color=colours[band], marker=markers[band], ms=8, label=band)
-                        ax2[b].vlines(day, obs_mag[obs][i] - obs_mag_error[obs][i], obs_mag[obs][i] + obs_mag_error[obs][i], color=colours[band])
-                        if np.isfinite(obs_mag[obs][i]) and obs_mag[obs][i] < min_obs:
-                            min_obs = obs_mag[obs][i]
-                        if np.isfinite(obs_mag[obs][i]) and obs_mag[obs][i] > max_obs:
-                            max_obs = obs_mag[obs][i]
+                    ax2[b, 0].plot(day, obs_mag[obs][0], color=colours[band], marker=markers[band], ms=8, label=band)
+                    ax2[b, 0].plot(day, model_mag[obs][0], color='black', marker='.', ms=5)
+                    ax2[b, 0].vlines(day, obs_mag[obs][0] - obs_mag_error[obs][0], obs_mag[obs][0] + obs_mag_error[obs][0], color=colours[band])
+
+                    ax2[b, 1].plot(day, obs_mag[obs][1], color=colours[band], marker=markers[band], ms=8, label=band)
+                    ax2[b, 1].plot(day, model_mag[obs][1], color='black', marker='.', ms=5)
+                    ax2[b, 1].vlines(day, obs_mag[obs][1] - obs_mag_error[obs][1], obs_mag[obs][1] + obs_mag_error[obs][1], color=colours[band])
+                    if np.isfinite(min(obs_mag[obs])) and min(obs_mag[obs]) < min_obs:
+                        min_obs = min(obs_mag[obs])
+                    if np.isfinite(max(obs_mag[obs])) and max(obs_mag[obs]) > max_obs:
+                        max_obs = max(obs_mag[obs])
 
             lim_max = max([max(max_lc)+1, max_obs])
             lim_min = min([min(min_lc)-1, min_obs])
             print(lim_max, lim_min)
 
-            ax2[b].set_ylim(lim_max, lim_min)
-            ax2[b].text(0.83, 0.057, str(bands[b]), transform=ax2[b].transAxes, fontsize=17, zorder=100)
-            ax2[b].set_xlabel("Day", fontsize=18)
-            ax2[b].set_ylabel("Apparent magnitude", fontsize=18)
+            for i in range(2):
+                ax2[b, i].set_ylim(lim_max, lim_min)
+                ax2[b, i].text(0.83, 0.057, str(bands[b]), transform=ax2[b, i].transAxes, fontsize=17, zorder=100)
+                ax2[b, i].set_xlabel("Day", fontsize=18)
+                ax2[b, 0].set_ylabel("Apparent magnitude", fontsize=18)
 
-            plt.savefig("../results/figures/Lightcurves_weather_multiband.png", dpi=200, bbox_inches='tight')
+            # plt.savefig("../results/figures/Lightcurves_weather_multiband.png", dpi=200, bbox_inches='tight')
 
     def plot_observations(self, time_series):
         """

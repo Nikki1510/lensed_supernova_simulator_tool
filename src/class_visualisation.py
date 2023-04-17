@@ -23,7 +23,8 @@ class Visualisation:
         :param theta_E: einstein radius of the lens galaxy (float)
         :param data_class: instance of ImageData() from Lenstronomy containing the image properties
         :param macro_mag: array of length [num_images] with the macro magnification for each image
-        :param days: array containing the time stamps (in days) of the observations
+        :param obs_days: array containing the time stamps (in days) of the observations
+        :param obs_days_filters: array containing the filters of the observations
         """
 
         self.time_delay_distance = time_delay_distance
@@ -41,12 +42,12 @@ class Visualisation:
         """
         Prints out the key properties of the lensed supernova system.
 
-        :param peak_brightness_image: array of length [num_filters, num_images] containing the brightest apparent magnitudes of each
-               of the supernova images for each  band
         :param z_lens: redshift of the lens galaxy (float)
         :param z_source: redshift of the supernova (float)
         :param H_0: value of the Hubble constant used for the background cosmology in this current lens configuration (float)
         :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak
+        :param peak_brightness_image: array of length [num_filters, num_images] containing the brightest apparent magnitudes of each
+               of the supernova images for each  band
         :return: printed statements about the key properties of the lens system
         """
         print(" ")
@@ -116,16 +117,13 @@ class Visualisation:
 
         plt.show()
 
-    def plot_light_curves(self, model, day_range, micro_day_range, add_microlensing, obs_mag, obs_mag_error):
+    def plot_light_curves(self, model, day_range):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
 
         :param model: SNcosmo model for the supernova light curve
         :param day_range: array with a range of time steps to cover the lensed supernova evolution
-        :param micro_day_range: array of shape [len(day_range), num_images] containing the microlensing contribution
-               for each image and each time step
-        :param add_microlensing: bool, if False: only compute macro light curves, if True: add microlensing contributions
         :return: plots the individual light curves, combined light curve, and observation time stamps
         """
         fig2, ax2 = plt.subplots(1, 1, figsize=(12, 5))
@@ -190,94 +188,26 @@ class Visualisation:
 
         ax2.text(0.83, 0.057, r'light curves ($i$)', transform=ax2.transAxes, fontsize=17, zorder=100)
 
-        plt.savefig("../results/figures/Lightcurves_noweather_multiband.png", dpi=200, bbox_inches='tight')
-
-        """
-
-
-    
-            mag = model.bandmag(filter, time=day - self.td_images[image], magsys='ab')
-
-            ax2.plot(day, mag)
-
-
-
-
-
-
-        # Plot the light curve for each image
-        for image in range(len(self.td_images)):
-            # Calculate the flux and append to total flux
-            flux = model.bandflux('lssti', time=day_range - self.td_images[image])
-            flux *= self.macro_mag[image]
-            fluxes.append(flux)
-            # Calculate and plot the apparent magnitudes
-            mags_range = model.bandmag('lssti', time=day_range - self.td_images[image], magsys='ab')
-            mags_range -= 2.5 * np.log10(self.macro_mag[image])
-            if not add_microlensing:
-                ax2.plot(day_range, mags_range, lw=4, label="Im " + str(image + 1) + " macro",
-                         color=colours[image])
-            # Calculate the apparent magnitudes with microlensing contributions
-            elif add_microlensing:
-                ax2.plot(day_range, mags_range, ls='--', lw=2, label="Im " + str(image + 1) + " macro",
-                         color=colours[image], alpha=0.5)
-                microlensing_lightcurve = mags_range + micro_day_range[:, image]
-                ax2.plot(day_range, microlensing_lightcurve, lw=2, label="Im " + str(image + 1) + " microlensed",
-                         color=colours[image])
-
-
-        # Calculate the total flux of all images combined, convert to total apparent magnitude and plot
-        # zeropoint = sncosmo.ABMagSystem(name='ab').zpbandflux(bandpass)
-        # total_flux = np.sum(fluxes, axis=0)
-        # total_mag = -2.5 * np.log10(total_flux / zeropoint)
-        # total_lightcurve = interp1d(day_range, total_mag, bounds_error=False)
-        # ax2.plot(day_range, total_mag, lw=4, color="gray", label="Total", zorder=1, alpha=0.5)
-        # Plot observations
-        # ax2.plot(self.obs_days, total_lightcurve(self.obs_days), '.', ms=10, color="black", label="Observations")
-        for obs in range(len(self.obs_days)):
-            if self.obs_days_filters[obs] == 'u':
-                obs_color = '#984ea3'
-                ax2.text(1.2, 0.8, 'u-band', color=obs_color, transform = ax2.transAxes)
-            elif self.obs_days_filters[obs] == 'g':
-                obs_color = '#377eb8'
-                ax2.text(1.05, 0.8, 'g-band', color=obs_color, transform=ax2.transAxes, fontsize=18)
-            elif self.obs_days_filters[obs] == 'r':
-                obs_color = '#4daf4a'
-                ax2.text(1.05, 0.7, 'r-band', color=obs_color, transform=ax2.transAxes, fontsize=18)
-            elif self.obs_days_filters[obs] == 'i':
-                obs_color = '#e3c530'
-                ax2.text(1.05, 0.6, 'i-band', color=obs_color, transform=ax2.transAxes, fontsize=18)
-            elif self.obs_days_filters[obs] == 'z':
-                obs_color = '#ff7f00'
-                ax2.text(1.05, 0.5, 'z-band', color=obs_color, transform=ax2.transAxes, fontsize=18)
-            elif self.obs_days_filters[obs] == 'y':
-                obs_color = '#e41a1c'
-                ax2.text(1.05, 0.4, 'y-band', color=obs_color, transform=ax2.transAxes, fontsize=18)
-            ax2.axvline(x=self.obs_days[obs], color=obs_color, lw=1, label="Observations" if obs == 0 else None, zorder=1)
-        # ax2.legend(loc=(1.01, 0.5), fontsize=18)
-
-
-        # labels = {'o': 'g', 'o': 'r', 'o': 'i', 'o': 'z'}
-        # ax2.legend(ncol=2, handletextpad=.3, borderaxespad=.3,
-        #            labelspacing=.2, borderpad=.3, columnspacing=.4)
-
-        # plt.savefig("../results/figures/Lightcurve_single_for_BOOM.pdf", transparent=True, bbox_inches='tight')
-        """
+        # plt.savefig("../results/figures/Lightcurves_noweather_multiband.png", dpi=200, bbox_inches='tight')
 
         plt.show()
 
-    def plot_light_curves_perband(self, model, day_range, micro_day_range, add_microlensing, model_mag, obs_mag, obs_mag_error):
+    def plot_light_curves_perband(self, model, day_range, model_mag, obs_mag, obs_mag_error):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
 
         :param model: SNcosmo model for the supernova light curve
         :param day_range: array with a range of time steps to cover the lensed supernova evolution
-        :param micro_day_range: array of shape [len(day_range), num_images] containing the microlensing contribution
-               for each image and each time step
-        :param add_microlensing: bool, if False: only compute macro light curves, if True: add microlensing contributions
+        :param model_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image as predicted by the model (so NOT perterbed by weather)
+        :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image (perterbed by weather)
+        :param obs_mag_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+
         :return: plots the individual light curves, combined light curve, and observation time stamps
         """
+
         fig2, ax2 = plt.subplots(4, 2, figsize=(15, 12))
         fig2.gca().invert_yaxis()
         fig2.suptitle(r"Observations in each band", fontsize=25)

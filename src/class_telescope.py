@@ -23,12 +23,13 @@ import pandas as pd
         
 class Telescope:
 
-    def __init__(self, telescope, bandpasses, num_images):
+    def __init__(self, telescope, bandpasses, num_samples):
         """
         This class defines the telescope properties.
 
-        :param bandpasses: list containing bandpasses that will be used, choose from 'g', 'r', 'i', 'z' and 'y'
         :param telescope: choose between 'LSST' and 'ZTF'
+        :param bandpasses: list containing bandpasses that will be used, choose from 'g', 'r', 'i', 'z' and 'y'
+        :param num_samples: total number of lens systems to be generated (int)
         """
 
         self.telescope = telescope
@@ -43,7 +44,7 @@ class Telescope:
             self.patch_size = self.deltaPix * self.numPix
 
         # Create telescope sky pointings
-        ra_pointings, dec_pointings = self.create_sky_pointings(N=num_images)
+        ra_pointings, dec_pointings = self.create_sky_pointings(N=num_samples)
 
         # Initialise OpSim Summary (SynOpSim) generator
         print("Setting up OpSim Summary generator...")
@@ -367,69 +368,10 @@ class Telescope:
 
         return flux_skysig, lim_mag
 
-    def get_total_obs_times(self, obs_times, obs_filters):
-        """
-        Compute lists with the observation times of all objects together.
-
-        :param obs_times: contains for each observation the observation times
-        :param obs_filters: contains for each observation the filters/bandpasses used
-        :return: lists with all observation times and the ones in the r, i, z, and y bands
-        """
-        obs_all = []
-        obs_r = []
-        obs_i = []
-        obs_z = []
-        obs_y = []
-
-        for lens in range(len(obs_times)):
-            obs_all += list(obs_times[lens])
-
-            for obs in range(len(obs_times[lens])):
-
-                if obs_filters[lens][obs] == 'r':
-                    obs_r.append(obs_times[lens][obs])
-
-                if obs_filters[lens][obs] == 'i':
-                    obs_i.append(obs_times[lens][obs])
-
-                if obs_filters[lens][obs] == 'z':
-                    obs_z.append(obs_times[lens][obs])
-
-                if obs_filters[lens][obs] == 'y':
-                    obs_y.append(obs_times[lens][obs])
-
-        return obs_all, obs_r, obs_i, obs_z, obs_y
-
-    def plot_cadence(self, bins=100, small_sample=True):
-        """
-        Plot the distribution of LSST inter night gaps and return the minimum and maximum observation dates.
-
-        :param bins: the number of bins of the histograms
-        :return: a plot displaying a histogram of the inter night gap values
-        """
-
-        obs_times, obs_filters, _, _, _, _, _, _ = self.load_cadence(small_sample=small_sample)
-        obs_all, obs_r, obs_i, obs_z, obs_y = self.get_total_obs_times(obs_times, obs_filters)
-
-        plt.figure(figsize=(12, 4))
-        plt.hist(obs_all, bins=bins, color='black', alpha=0.15, label=r"all")
-        plt.hist(obs_r, bins=bins, color='#4daf4a', alpha=0.3, label=r"$r$-band")
-        plt.hist(obs_i, bins=bins, color='#e3c530', alpha=0.3, label=r"$i$-band")
-        plt.hist(obs_z, bins=bins, color='#ff7f00', alpha=0.3, label=r"$z$-band")
-        plt.hist(obs_y, bins=bins, color='#e41a1c', alpha=0.3, label=r"$y$-band")
-        plt.xlabel("MJD", fontsize=20)
-        plt.ylabel("Observations", fontsize=20)
-        plt.title(r"Baseline v2.0 cadence for " + str(len(obs_times)) + " objects", fontsize=25)
-        plt.legend(loc=(1.04, 0.36), fontsize=18)
-        # plt.savefig("../results/figures/Cadence_78159_objects.pdf", transparent=True, bbox_inches='tight')
-        plt.show()
-
     def plot_redshifts(self):
         """
         Plot the distributions of the lens and the source redshifts for the lensed supernovae.
 
-        :param z_lens_list_: array containing the lens redshift values used in the simulation
-        :param z_source_list_: array containing the source redshift values used in the simulation
         :return: a plot displaying a KDE of the source and lens redshift distributions
         """
 
@@ -540,6 +482,7 @@ class Telescope:
         :param kwargs_source: list of keyword arguments for the source light model
         :param kwargs_lens_light: list of keyword arguments for the lens light model
         :param band: bandpass at which to generate the image. choose from 'g', 'r', 'i', 'z', 'y' for LSST
+        :param Noise: Bool. if True: add noise to the image
         :return: 2D array of (NumPix * DeltaPix)^2 pixels containing the image
         """
 

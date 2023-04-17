@@ -15,8 +15,8 @@ from class_telescope import Telescope
 from class_timer import Timer
 
 
-def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit,
-                                obs_upper_limit, fixed_H0, lsst, Show, Save, path):
+def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_upper_limit, fixed_H0, lsst,
+                          Show, Save, path):
 
     """
     :param num_samples: total number of lens systems to be generated (int)
@@ -37,7 +37,7 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit,
     start_time = time.time()
 
     tqdm._instances.clear()
-    pbar = tqdm(total=num_samples, position=0, leave=True) # notebook.tqdm
+    pbar = tqdm(total=num_samples, position=0, leave=True)  # notebook.tqdm
     counter = 0                     # Total number of attempts
     attempts = 0                    # Counts number of attempts per configuration
     sample_index = 0                # Counts how many configurations have been used (including failed ones)

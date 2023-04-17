@@ -339,10 +339,12 @@ class Supernova:
 
         zeropoint = telescope_class.single_band_properties(band)[3]
 
+        # Calculate limiting flux from zero point and limiting magnitude
         lim_flux = 10**((zeropoint - lim_mag)/2.5)
         flux_error = lim_flux / 5
 
         flux_ps = model.bandflux(sncosmo_filter, time=day - td_images, zp=zeropoint, zpsys='ab')
+
         # Apply macro magnification to image fluxes
         flux_ps *= macro_mag
         flux_ps[flux_ps < 0.0] = 0.0
@@ -361,20 +363,6 @@ class Supernova:
         app_mag_obs[app_mag_obs >= 50] = np.inf
         app_mag_error = abs(-2.5 * flux_error / (new_flux_ps * np.log(10)))
 
-
-        """
-        print(" ")
-        print("model_mag = ", app_mag_model)
-        print("macro_magnification = ", macro_mag)
-        print("flux_ps = ", flux_ps)
-        print("lim_mag = ", lim_mag)
-        print("lim_flux = ", lim_flux)
-        print("flux_error = ", flux_error)
-        print("new_flux_ps = ", new_flux_ps)
-        print("new_mag = ", app_mag_obs)
-        print(" ")
-        """
-
         app_mag_obs[app_mag_obs > 30] = np.inf
         app_mag_error[app_mag_obs > 30] = np.nan
 
@@ -387,9 +375,14 @@ class Supernova:
     def get_mags_unresolved(self, obs_mag, telescope_class, obs_filters, obs_lim_mag, filler=np.nan):
         """
         Calculate the apparent magnitude for all images together (unresolved)
+
         :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
-            observation and each image. Use in combination with obs_times and obs_bands.
-        :return: array of len N_observations containing the apparent magnitude from all images together
+            observation and each image.
+        :param telescope_class: class of telescope ('LSST' or 'ZTF')
+        :param obs_filters: array of length [num_observations] containing the filter used for each observation
+        :param obs_lim_mag: array of length [num_observations] containing the limiting magnitudes per observation
+        :param filler: choice of filler for observations dimmer than 50 magnitudes
+        :return: array of len N_observations containing the unresolved apparent magnitude for all images together
         """
 
         if len(obs_mag) == 0:

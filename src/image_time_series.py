@@ -25,15 +25,8 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
     :param batch_size: number of lens systems that is saved together in a batch (int)
     :param batch: the starting number of the batch
     :param num_images: number of lensed supernova images. choose between 2 (for doubles) and 4 (for quads)
-    :param obs_times: list containing observation times for a sample of supernovae according to LSST Baseline v2.0
-    :param obs_filters: list containing filters for a sample of supernovae according to LSST Baseline v2.0
-    :param obs_all: list containing the observation times (mjd) of all objects together (in all bands)
-    :param z_source_list_: array containing ~ 400,000 values of the source redshift
-    :param z_lens_list_: array containing ~ 400,000 values of the lens redshift
-    :param theta_E_list_: array containing ~ 400,000 values of the einstein radius
     :param add_microlensing: bool. if True: include microlensing effects
-    :param telescope: telescope where the observations are modelled after. choose between 'LSST' and 'ZTF'
-    :param bandpasses: bands/filters used for the lensed supernova observations
+    :param lsst: telescope where the observations are modelled after. choose between 'LSST' and 'ZTF'
     :param obs_lower_limit: maximum number of observations (above which observations are cut off)
     :param obs_upper_limit: minimum number of observations (below which systems are discarded)
     :param fixed_H0: bool. if True: H0 is kept to a fixed value (evaluationsest). if False: H0 varies (training/test set)
@@ -82,14 +75,7 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
         timer.initiate('general_properties')
         # _______________________________________________________________________
 
-        counter += 1
-        attempts += 1
 
-        # If tried more than 260 time unsucessfully; move on
-        if attempts > 260:
-            sample_index += 1
-            attempts = 0
-            continue
 
         # Sample lens configuration and cosmology
         z_source, z_lens, theta_E = lsst.sample_z_theta(z_source_list_, z_lens_list_, theta_E_list_,

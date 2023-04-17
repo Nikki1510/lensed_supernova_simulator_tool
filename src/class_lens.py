@@ -67,7 +67,6 @@ class Lens:
                                      z_source=self.z_source, cosmo=self.cosmo)
         return lens_model_class, kwargs_lens, gamma_lens, e1_lens, e2_lens, gamma1, gamma2
 
-
     def light_model(self):
         """
         Uses lenstronomy to calculate the light model of the lens galaxy.

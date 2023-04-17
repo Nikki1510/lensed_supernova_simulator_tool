@@ -88,7 +88,7 @@ class Supernova_Unlensed:
         Compute for each band the magnitudes of the brightest observation.
 
         :param telescope: choose between 'LSST' and 'ZTF'
-        :param brightness_obs: array of length [num_observations, num_images] containing the brightness of each observation
+        :param obs_mag: array of length [num_observations, num_images] containing the observed magnitude of each observation
         :param obs_filters: array of length [num_observations] containing the filter used for each observation
         :return: array of [num_filters, num_images] containing the peak brightness for each filter/bandpass.
                  if no observations are made in a filter, the array contains np.nans
@@ -161,6 +161,7 @@ class Supernova_Unlensed:
 
         :param model: SNcosmo model for the supernova light curve
         :param day: time stamp of observation
+        :param telescope_class: class of telescope ('LSST' or 'ZTF')
         :param band: bandpass, choose between 'g', 'r', 'i', 'z', 'y' for LSST and 'g', 'r', 'i' for ZTF.
         :param lim_mag: limiting magnitude of the specific observation in the specific band (takes into account weather)
         :return: app_mag_model: array of length [num_images] containing the apparent magnitude from the model

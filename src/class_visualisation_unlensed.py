@@ -48,7 +48,7 @@ class Visualisation_Unlensed:
 
         :param model: SNcosmo model for the supernova light curve
         :param day_range: array with a range of time steps to cover the lensed supernova evolution
-        :param obs_mag: array with observed apparent magnitudes of the supernova
+        :param model_mag: array with predicted model apparent magnitudes of the supernova
         :return: plots the individual light curves, combined light curve, and observation time stamps
         """
 

@@ -33,8 +33,8 @@ def create_dataframe_unlensed(batch_size):
 
 
 def write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_times, obs_bands, model_mag,
-                obs_mag, obs_mag_error, obs_snr, stretch, colour, Mb, obs_start, obs_end,
-                coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
+                         obs_mag, obs_mag_error, obs_snr, stretch, colour, Mb, obs_start, obs_end,
+                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -133,8 +133,9 @@ def create_dataframe(batch_size):
     return df
 
 
-def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands, model_mag,
-                obs_mag, obs_mag_error, obs_snr, obs_mag_unresolved, mag_unresolved_error, snr_unresolved, macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
+def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_times, obs_bands,
+                model_mag, obs_mag, obs_mag_error, obs_snr, obs_mag_unresolved, mag_unresolved_error, snr_unresolved,
+                macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
                 stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method,
                 coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
@@ -257,8 +258,8 @@ def get_time_delay_distance(z_source, z_lens, cosmo):
     :return: time delay distance of the lens system in Mpc (float)
     """
     D_dt = (1 + z_lens) * cosmo.angular_diameter_distance(z_lens).value * \
-            cosmo.angular_diameter_distance(z_source).value / \
-            cosmo.angular_diameter_distance_z1z2(z_lens, z_source).value
+           cosmo.angular_diameter_distance(z_source).value / \
+           cosmo.angular_diameter_distance_z1z2(z_lens, z_source).value
     return D_dt
 
 

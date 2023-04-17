@@ -4,6 +4,91 @@ import pandas as pd
 import math
 
 
+def create_dataframe_unlensed(batch_size):
+    """
+    Creates an empty pandas data frame, to be filled with information from each run of the simulation.
+
+    :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
+    :return: an empty pandas data frame with [batch_size] rows and 23 columns
+    """
+    df = pd.DataFrame(np.zeros((batch_size, 19)),
+         columns=['z_source', 'H0', 'obs_peak', 'obs_times', 'obs_bands', 'model_mag', 'obs_mag', 'obs_mag_error',
+                  'obs_snr', 'stretch', 'colour', 'Mb', 'obs_start', 'obs_end',
+                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds'])
+
+    df['obs_peak'] = df['obs_peak'].astype('object')
+    df['obs_times'] = df['obs_times'].astype('object')
+    df['obs_bands'] = df['obs_bands'].astype('object')
+    df['model_mag'] = df['model_mag'].astype('object')
+    df['obs_mag'] = df['obs_mag'].astype('object')
+    df['obs_mag_error'] = df['obs_mag_error'].astype('object')
+    df['obs_snr'] = df['obs_snr'].astype('object')
+    df['coords'] = df['coords'].astype('object')
+    df['obs_skybrightness'] = df['obs_skybrightness'].astype('object')
+    df['obs_psf'] = df['obs_psf'].astype('object')
+    df['obs_lim_mag'] = df['obs_lim_mag'].astype('object')
+    df['obs_N_coadds'] = df['obs_N_coadds'].astype('object')
+
+    return df
+
+
+def write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_times, obs_bands, model_mag,
+                obs_mag, obs_mag_error, obs_snr, stretch, colour, Mb, obs_start, obs_end,
+                coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
+    """
+    Write the properties of the current lens system into a row of the data frame.
+
+    :param df: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems
+    :param index: count of how many successful configurations have been used to generate lens systems
+    :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
+    :param z_source: redshift of the supernova (float)
+    :param H_0: value of the Hubble constant used for the background cosmology in this current lens configuration (float)
+    :param obs_peak: array of length [num_filters, num_images] containing the brightest apparent magnitudes of each of
+           the supernova images for each filter/bandpass
+    :param obs_times: array of length N_observations containing the time stamps of each observation
+    :param obs_bands: array of length N_observations containing the bandpasses for each observation
+    :param model_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image as predicted by the model (so NOT perterbed by weather)
+    :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image (perterbed by weather). Use in combination with obs_times and obs_bands.
+    :param obs_mag_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+    :param obs_snr: array of shape [N_observations, N_images] containing the S/N ratio for each image
+    :param stretch: stretch parameter associated with the supernova light curve (float)
+    :param colour: colour parameter associated with the supernova light curve (float)
+    :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
+    :param obs_start: MJD of the first observation (float)
+    :param obs_end: MJD of the last observation (float)
+    :param coords: right ascension and declination of the lensed supernova
+    :param obs_skybrightness: array of length N_observations containing the sky brightness (in magnitudes)
+    :param obs_psf: array of length N_observations containing the FWHM of the PSF for each observation (in arcsec)
+    :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
+    :param obs_N_coadds: array of length N_observations with the number of coadds for each observation
+    :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
+             including the newest one
+    """
+
+    df['z_source'][index % batch_size] = z_source
+    df['H0'][index % batch_size] = H_0
+    df['obs_peak'][index % batch_size] = obs_peak
+    df['obs_times'][index % batch_size] = obs_times
+    df['obs_bands'][index % batch_size] = obs_bands
+    df['model_mag'][index % batch_size] = model_mag
+    df['obs_mag'][index % batch_size] = obs_mag
+    df['obs_mag_error'][index % batch_size] = obs_mag_error
+    df['obs_snr'][index % batch_size] = obs_snr
+    df['stretch'][index % batch_size] = stretch
+    df['colour'][index % batch_size] = colour
+    df['Mb'][index % batch_size] = Mb
+    df['obs_start'][index % batch_size] = obs_start
+    df['obs_end'][index % batch_size] = obs_end
+    df['coords'][index % batch_size] = coords
+    df['obs_skybrightness'][index % batch_size] = obs_skybrightness
+    df['obs_psf'][index % batch_size] = obs_psf
+    df['obs_lim_mag'][index % batch_size] = obs_lim_mag
+    df['obs_N_coadds'][index % batch_size] = obs_N_coadds
+    return df
+
+
 def create_dataframe(batch_size):
     """
     Creates an empty pandas data frame, to be filled with information from each run of the simulation.

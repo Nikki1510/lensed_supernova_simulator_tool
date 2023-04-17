@@ -344,7 +344,7 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
                 app_mag_model, app_mag_obs, app_mag_error, snr = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day,
                                                                         lsst, band, lim_mag, add_microlensing)
                 app_mag_model_i, app_mag_obs_i, _, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, lsst,
-                                                           'i', lim_mag, add_microlensing)
+                                                           'i', 24.0, add_microlensing)
 
                 model_mag.append(np.array(app_mag_model))
                 obs_mag.append(np.array(app_mag_obs))

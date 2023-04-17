@@ -393,7 +393,7 @@ class Supernova:
         """
 
         if len(obs_mag) == 0:
-            return np.nan
+            return np.nan, np.nan, np.nan
 
         # Get zero points
         zeropoints = np.ones_like(obs_mag)

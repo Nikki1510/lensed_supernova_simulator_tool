@@ -23,17 +23,16 @@ import pandas as pd
         
 class Telescope:
 
-    def __init__(self, telescope, bandpasses, num_samples):
+    def __init__(self, telescope, num_samples):
         """
         This class defines the telescope properties.
 
         :param telescope: choose between 'LSST' and 'ZTF'
-        :param bandpasses: list containing bandpasses that will be used, choose from 'g', 'r', 'i', 'z' and 'y'
         :param num_samples: total number of lens systems to be generated (int)
         """
 
         self.telescope = telescope
-        self.bandpasses = bandpasses             # choose from 'g', 'r', 'i', 'z' and 'y'
+        self.bandpasses = ['g', 'r', 'i', 'z', 'y']
 
         if telescope == 'LSST':
             self.exp_time = 30                   # seconds
@@ -451,11 +450,12 @@ class Telescope:
         x_range = np.linspace(0, 5, 1000)
 
         fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+        bandpasses = ['r', 'i', 'z', 'y']
 
-        for band in range(len(self.bandpasses)):
-            seeing_params = self.get_seeing_params(self.bandpasses[band])
+        for band in range(4):
+            seeing_params = self.get_seeing_params(bandpasses[band])
             ax.plot(x_range, stats.skewnorm.pdf(x_range, seeing_params['s'], seeing_params['mean'], seeing_params['sigma']),
-                    color=colours[band], lw=3, label=r"$%s$ -band, median = %.2f''" % (self.bandpasses[band],
+                    color=colours[band], lw=3, label=r"$%s$ -band, median = %.2f''" % (bandpasses[band],
                     stats.skewnorm.median(seeing_params['s'], seeing_params['mean'], seeing_params['sigma'])))
 
         # ax.legend(loc=(1.04, 0.45), fontsize=18)
@@ -468,7 +468,7 @@ class Telescope:
         plt.show()
 
     def generate_image(self, x_image, y_image, amp_ps, lens_model_class, source_model_class,
-                       lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light, band, Noise=True):
+                       lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light, band, psf, Noise=True):
         """
         Generate a difference image with the lensed supernova images, according to Rubin telescope settings.
 
@@ -482,6 +482,7 @@ class Telescope:
         :param kwargs_source: list of keyword arguments for the source light model
         :param kwargs_lens_light: list of keyword arguments for the lens light model
         :param band: bandpass at which to generate the image. choose from 'g', 'r', 'i', 'z', 'y' for LSST
+        :param psf: FWHM of the PSF for this observation
         :param Noise: Bool. if True: add noise to the image
         :return: 2D array of (NumPix * DeltaPix)^2 pixels containing the image
         """
@@ -489,11 +490,10 @@ class Telescope:
         _, limiting_mag, sigma_bkg, _ = self.single_band_properties(band)
         data_class, x_grid1d, y_grid1d, min_coordinate, max_coordinate = self.grid(sigma_bkg)
 
-        seeing_params = self.get_seeing_params(band)
+        # seeing_params = self.get_seeing_params(band)
+        # fwhm = skewnorm.rvs(seeing_params['s'], seeing_params['mean'], seeing_params['sigma'])
 
-        # Sample PSF from a skewed Gaussian distribution
-        fwhm = skewnorm.rvs(seeing_params['s'], seeing_params['mean'], seeing_params['sigma'])
-        kwargs_psf = {'psf_type': self.psf_type, 'pixel_size': self.deltaPix, 'fwhm': fwhm}
+        kwargs_psf = {'psf_type': self.psf_type, 'pixel_size': self.deltaPix, 'fwhm': psf}
         psf_class = PSF(**kwargs_psf)
         point_source_list = ['LENSED_POSITION']
         kwargs_ps = [{'ra_image': x_image, 'dec_image': y_image, 'point_amp': amp_ps}]

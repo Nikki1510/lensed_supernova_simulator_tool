@@ -362,7 +362,7 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
 def main():
     # ---------------------------------
     telescope = 'LSST'
-    bandpasses = ['r', 'i', 'z', 'y']
+    bandpasses = ['r', 'i', 'z', 'y', 'g']
     num_samples = 20
     # ---------------------------------
 

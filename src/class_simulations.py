@@ -265,12 +265,13 @@ class Simulations:
                 day = opsim_times[observation]
                 band = opsim_filters[observation]
                 lim_mag = opsim_lim_mag[observation]
+                psf = opsim_psf[observation]
 
-                # For the r-filter, light curves with z > 1.5 are not defined. Skip these.
-                # !! Also do this for u and g bands !!
-                if band == 'r' and z_source > 1.5:
+                # For the r-filter, light curves with z > 1.6 are not defined. Skip these.
+                # For the g-filter, light curves with z > 0.8 are not defined. Skip these.
+                if band == 'r' and z_source > 1.6:
                     continue
-                elif band == 'g':
+                elif band == 'g' and z_source > 0.8:
                     continue
                 elif band == 'u':
                     continue
@@ -282,7 +283,7 @@ class Simulations:
                 obs_filters.append(band)
                 obs_skybrightness.append(opsim_sky_brightness[observation])
                 obs_lim_mag.append(lim_mag)
-                obs_psf.append(opsim_psf[observation])
+                obs_psf.append(psf)
                 obs_N_coadds.append(N_coadds[observation])
 
                 # Calculate microlensing contribution to light curve on this specific point in time
@@ -313,7 +314,7 @@ class Simulations:
                 # Create the image and save it to the time-series list
                 image_sim = lsst.generate_image(x_image, y_image, amp_ps, lens_model_class, source_model_class,
                                                 lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light,
-                                                band)
+                                                band, psf)
 
                 time_series.append(image_sim)
 

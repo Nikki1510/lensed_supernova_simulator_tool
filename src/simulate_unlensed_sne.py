@@ -113,6 +113,9 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
 
             ra, dec, opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness = lsst.opsim_observation(gen)
 
+            Nobs_10yr = len(opsim_times)
+            Nobs_3yr = len(opsim_times[opsim_times < 61325])
+
             coords = np.array([ra, dec])
 
             # Start and end time of the lensed supernova
@@ -171,11 +174,11 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
                 band = opsim_filters[observation]
                 lim_mag = opsim_lim_mag[observation]
 
-                # For the r-filter, light curves with z > 1.5 are not defined. Skip these.
-                # !! Also do this for u and g bands !!
-                if band == 'r' and z_source > 1.5:
+                # For the r-filter, light curves with z > 1.6 are not defined. Skip these.
+                # For the g-filter, light curves with z > 0.8 are not defined. Skip these.
+                if band == 'r' and z_source > 1.6:
                     continue
-                elif band == 'g':
+                elif band == 'g' and z_source > 0.8:
                     continue
                 elif band == 'u':
                     continue
@@ -242,6 +245,9 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
         # Compute the maximum brightness in each bandpass
         obs_peak = supernova.brightest_obs_bands(lsst, obs_mag, obs_filters)
 
+        # Determine if the observation belongs to the WFD/DDF/galactic plane
+        survey, rolling = lsst.determine_survey(Nobs_3yr, Nobs_10yr, obs_start)
+
         # _______________________________________________________________________
 
         if Show:
@@ -257,7 +263,7 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
             visualise.print_properties(z_source, H_0, obs_peak)
 
             # Plot light curve with observation epochs
-            visualise.plot_light_curves(model, day_range, model_mag)
+            visualise.plot_light_curves(model, day_range, obs_mag, obs_mag_error)
             visualise.plot_light_curves_perband(model, day_range, model_mag, obs_mag, obs_mag_error)
 
         # ____________________________________________________________________________
@@ -265,13 +271,13 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
         # Save the desired quantities in the data frame
         df = write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_days,
                          obs_filters, model_mag, obs_mag, obs_mag_error, obs_snr, x1, c, M_B, obs_start, obs_end,
-                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds)
+                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds, survey, rolling)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "Baselinev30_unlensed_newrates_batch" + str(str(batch).zfill(3)) + ".pkl")
+                df.to_pickle(path + "Baselinev30_unlensed_surveyinfo_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame

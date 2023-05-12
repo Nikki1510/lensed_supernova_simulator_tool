@@ -41,7 +41,7 @@ class Visualisation_Unlensed:
         print(np.around(peak_brightness_image, 2))
         print(" ")
 
-    def plot_light_curves(self, model, day_range, model_mag):
+    def plot_light_curves(self, model, day_range, obs_mag, obs_mag_error):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
@@ -61,8 +61,8 @@ class Visualisation_Unlensed:
         colours = {'lsstg': '#377eb8', 'lsstr': '#4daf4a',
                    'lssti': '#e3c530', 'lsstz': '#ff7f00', 'lssty': '#e41a1c'}
 
-        markers = {'lsstg': 'v', 'lsstr': '^',
-                   'lssti': '<', 'lsstz': 'o', 'lssty': 's'}
+        markers = {'lsstg': '>', 'lsstr': '<',
+                   'lssti': '^', 'lsstz': 'o', 'lssty': 's'}
 
         mags = model.bandmag('lssti', time=day_range, magsys='ab')
         ax2.plot(day_range, mags, color='black', alpha=0.5, lw=1.5, label=r"light curve in $i$-band")
@@ -71,11 +71,14 @@ class Visualisation_Unlensed:
             day = self.obs_days[obs]
             band = 'lsst' + self.obs_days_filters[obs]
 
-            ax2.plot(day, model_mag[obs], color=colours[band], marker=markers[band], ms=10, label=band)
+            ax2.plot(day, obs_mag[obs], color=colours[band], marker=markers[band], ms=10, label=band)
+            ax2.vlines(day, obs_mag[obs] - obs_mag_error[obs], obs_mag[obs] + obs_mag_error[obs], color=colours[band])
 
         legend_handles = [
+            Line2D([0], [0], marker=markers['lsstg'], color=colours['lsstg'], label=r'lsst $g$', ms=10, lw=0),
             Line2D([0], [0], marker=markers['lsstr'], color=colours['lsstr'], label=r'lsst $r$', ms=10, lw=0),
             Line2D([0], [0], marker=markers['lssti'], color=colours['lssti'], label=r'lsst $i$', ms=10, lw=0),
+            Line2D([0], [0], marker='o', color='white'),
             Line2D([0], [0], marker='o', color='white'),
             Line2D([0], [0], marker=markers['lsstz'], color=colours['lsstz'], label=r'lsst $z$', ms=10, lw=0),
             Line2D([0], [0], marker=markers['lssty'], color=colours['lssty'], label=r'lsst $y$', ms=10, lw=0)]

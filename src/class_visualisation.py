@@ -117,7 +117,7 @@ class Visualisation:
 
         plt.show()
 
-    def plot_light_curves(self, model, day_range):
+    def plot_light_curves(self, model, day_range, obs_mag_unresolved, mag_unresolved_error):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
@@ -135,8 +135,8 @@ class Visualisation:
         colours = {'lsstg': '#377eb8', 'lsstr': '#4daf4a',
                    'lssti': '#e3c530', 'lsstz': '#ff7f00', 'lssty': '#e41a1c'}
 
-        markers = {'lsstg': 'v', 'lsstr': '^',
-                   'lssti': '<', 'lsstz': 'o', 'lssty': 's'}
+        markers = {'lsstg': '>', 'lsstr': '<',
+                   'lssti': '^', 'lsstz': 'o', 'lssty': 's'}
 
         def total_mag(model, day_range, day, band, td_images, macro_mag):
             """
@@ -156,21 +156,36 @@ class Visualisation:
 
             return total_lightcurve(day)
 
+        max_obs, min_obs = 24, 24
+        max_lc, min_lc = [], []
+
         for im in range(len(self.td_images)):
             mags = model.bandmag('lssti', time=day_range - self.td_images[im], magsys='ab')
             mags -= 2.5 * np.log10(self.macro_mag[im])
             ax2.plot(day_range, mags, color='black', alpha=0.5, lw=1.5, label=r"light curves in $i$-band" if im ==0 else None)
 
+            max_lc.append(np.max(mags[np.isfinite(mags)]))
+            min_lc.append(np.min(mags[np.isfinite(mags)]))
+
+        lim_max = max([max(max_lc) + 1, max_obs])
+        lim_min = min([min(min_lc) - 2, min_obs])
+
         for obs in range(len(self.obs_days)):
             day = self.obs_days[obs]
             band = 'lsst' + self.obs_days_filters[obs]
 
-            ax2.plot(day, total_mag(model, day_range, day, band, self.td_images, self.macro_mag),
-                     color=colours[band], marker=markers[band], ms=10, label=band)
+            # ax2.plot(day, total_mag(model, day_range, day, band, self.td_images, self.macro_mag),
+            #          color=colours[band], marker=markers[band], ms=2, label=band)
+
+            ax2.plot(day, obs_mag_unresolved[obs], color=colours[band], marker=markers[band], ms=8, label=band)
+            ax2.vlines(day, obs_mag_unresolved[obs] - mag_unresolved_error[obs], obs_mag_unresolved[obs] + mag_unresolved_error[obs],
+                             color=colours[band])
 
 
-        legend_handles = [Line2D([0], [0], marker=markers['lsstr'], color=colours['lsstr'], label=r'lsst $r$', ms=10, lw=0),
+        legend_handles = [Line2D([0], [0], marker=markers['lsstg'], color=colours['lsstg'], label=r'lsst $g$', ms=10, lw=0),
+                          Line2D([0], [0], marker=markers['lsstr'], color=colours['lsstr'], label=r'lsst $r$', ms=10, lw=0),
                           Line2D([0], [0], marker=markers['lssti'], color=colours['lssti'], label=r'lsst $i$', ms=10, lw=0),
+                          Line2D([0], [0], marker='o', color='white'),
                           Line2D([0], [0], marker='o', color='white'),
                           Line2D([0], [0], marker=markers['lsstz'], color=colours['lsstz'], label=r'lsst $z$', ms=10, lw=0),
                           Line2D([0], [0], marker=markers['lssty'], color=colours['lssty'], label=r'lsst $y$', ms=10, lw=0)]
@@ -185,6 +200,7 @@ class Visualisation:
 
         ax2.add_artist(legend1)
         ax2.add_artist(legend2)
+        ax2.set_ylim(lim_max, lim_min)
 
         ax2.text(0.83, 0.057, r'light curves ($i$)', transform=ax2.transAxes, fontsize=17, zorder=100)
 
@@ -192,7 +208,8 @@ class Visualisation:
 
         plt.show()
 
-    def plot_light_curves_perband(self, model, day_range, model_mag, obs_mag, obs_mag_error):
+    def plot_light_curves_perband(self, z_source, model, day_range, model_mag, obs_mag, obs_mag_error, add_microlensing,
+                                                microlensing, micro_contributions):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.
@@ -208,34 +225,58 @@ class Visualisation:
         :return: plots the individual light curves, combined light curve, and observation time stamps
         """
 
-        fig2, ax2 = plt.subplots(4, 2, figsize=(15, 12))
-        fig2.gca().invert_yaxis()
-        fig2.suptitle(r"Observations in each band", fontsize=25)
-        fig2.subplots_adjust(hspace=0.3)
-
         colours = {'lsstg': '#377eb8', 'lsstr': '#4daf4a',
                    'lssti': '#e3c530', 'lsstz': '#ff7f00', 'lssty': '#e41a1c'}
 
         markers = {'lsstg': 'v', 'lsstr': '^',
                    'lssti': '<', 'lsstz': 'o', 'lssty': 's'}
 
-        bands = ['lsstr', 'lssti', 'lsstz', 'lssty']
+        if z_source < 0.8:
+            bands = ['lsstg', 'lsstr', 'lssti', 'lsstz', 'lssty']
+        else:
+            bands = ['lsstr', 'lssti', 'lsstz', 'lssty']
 
-        for b in range(4):
+        num_rows = len(bands)
+        fig_height = 12/4 * num_rows
+
+        fig2, ax2 = plt.subplots(num_rows, 2, figsize=(15, fig_height))
+        fig2.gca().invert_yaxis()
+        fig2.suptitle(r"Observations in each band", fontsize=25)
+        fig2.subplots_adjust(hspace=0.3)
+
+        for b in range(num_rows):
 
             band = bands[b]
             max_obs, min_obs = 24, 24
             max_lc, min_lc = [], []
 
+            # Calculate microlensing contributions
+            if add_microlensing:
+                micro_day_range = []
+                for d in day_range:
+                    micro_day_range.append(np.array(microlensing.micro_snapshot(micro_contributions, self.td_images, d, band[-1])))
+                micro_day_range = np.array(micro_day_range)
+            else:
+                micro_day_range = np.zeros((len(day_range), len(self.td_images)))
+
             for im in range(len(self.td_images)):
+
                 mags = model.bandmag(band, time=day_range - self.td_images[im], magsys='ab')
                 mags -= 2.5 * np.log10(self.macro_mag[im])
                 max_lc.append(np.max(mags[np.isfinite(mags)]))
-                min_lc.append(np.min(mags[np.isfinite(mags)]))
+                min_lc.append(np.min(mags[np.isfinite(mags - abs(micro_day_range[:, im]))]))
                 if im == 0:
                     ax2[b, 0].plot(day_range, mags, color='black', alpha=0.5, lw=1.5)
+                    if add_microlensing:
+                        ax2[b, 0].plot(day_range, mags + micro_day_range[:, im], '--', color='black', alpha=0.5, lw=1.5)
+                        # max_lc += max(0, np.max(micro_day_range))
+
                 elif im == 1:
                     ax2[b, 1].plot(day_range, mags, color='black', alpha=0.5, lw=1.5)
+                    if add_microlensing:
+                        ax2[b, 1].plot(day_range, mags + micro_day_range[:, im], '--', color='black', alpha=0.5, lw=1.5)
+                elif im > 1:
+                    break
 
             for obs in range(len(self.obs_days)):
                 day = self.obs_days[obs]
@@ -255,8 +296,7 @@ class Visualisation:
                         max_obs = max(obs_mag[obs])
 
             lim_max = max([max(max_lc)+1, max_obs])
-            lim_min = min([min(min_lc)-1, min_obs])
-            print(lim_max, lim_min)
+            lim_min = min([min(min_lc)-2, min_obs])
 
             for i in range(2):
                 ax2[b, i].set_ylim(lim_max, lim_min)

@@ -11,10 +11,10 @@ def create_dataframe_unlensed(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 19)),
+    df = pd.DataFrame(np.zeros((batch_size, 21)),
          columns=['z_source', 'H0', 'obs_peak', 'obs_times', 'obs_bands', 'model_mag', 'obs_mag', 'obs_mag_error',
                   'obs_snr', 'stretch', 'colour', 'Mb', 'obs_start', 'obs_end',
-                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds'])
+                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds', 'survey', 'rolling'])
 
     df['obs_peak'] = df['obs_peak'].astype('object')
     df['obs_times'] = df['obs_times'].astype('object')
@@ -34,7 +34,7 @@ def create_dataframe_unlensed(batch_size):
 
 def write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_times, obs_bands, model_mag,
                          obs_mag, obs_mag_error, obs_snr, stretch, colour, Mb, obs_start, obs_end,
-                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
+                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds, survey, rolling):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -63,6 +63,8 @@ def write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_tim
     :param obs_psf: array of length N_observations containing the FWHM of the PSF for each observation (in arcsec)
     :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
     :param obs_N_coadds: array of length N_observations with the number of coadds for each observation
+    :param survey: whether the sky coordinates belong to the WFD/DDF/galactic plane and pole region
+    :param rolling: only for WFD; whether the cadence does not rol or is in the active or background rolling region.
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -86,6 +88,8 @@ def write_to_df_unlensed(df, index, batch_size, z_source, H_0, obs_peak, obs_tim
     df['obs_psf'][index % batch_size] = obs_psf
     df['obs_lim_mag'][index % batch_size] = obs_lim_mag
     df['obs_N_coadds'][index % batch_size] = obs_N_coadds
+    df['survey'][index % batch_size] = survey
+    df['rolling'][index % batch_size] = rolling
     return df
 
 
@@ -96,14 +100,16 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 45)),
+    df = pd.DataFrame(np.zeros((batch_size, 55)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands', 'model_mag',
                   'obs_mag', 'obs_mag_error', 'obs_snr', 'obs_mag_unresolved', 'mag_unresolved_error', 'snr_unresolved',
-                  'macro_mag', 'source_x', 'source_y', 'time_delay',
-                  'time_delay_distance', 'image_x', 'image_y', 'gamma_lens', 'e1_lens', 'e2_lens',
-                  'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s', 'micro_peak', 'stretch', 'colour',
-                  'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method', 'mag_method_peak', 'mag_method',
-                  'coords', 'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds'])
+                  'macro_mag', 'source_x', 'source_y', 'time_delay', 'time_delay_distance', 'image_x', 'image_y',
+                  'gamma_lens', 'e1_lens', 'e2_lens', 'g1_shear', 'g2_shear', 'micro_kappa', 'micro_gamma', 'micro_s',
+                  'micro_peak', 'stretch', 'colour', 'Mb', 'obs_start', 'obs_end', 'mult_method_peak', 'mult_method',
+                  'mult_method_micro', 'mag_method_peak', 'mag_method', 'mag_method_micro',  'coords',
+                  'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds', 'survey', 'rolling', 'obs_mag_micro',
+                  'mag_micro_error', 'obs_snr_micro', 'mag_unresolved_micro', 'mag_unresolved_micro_error',
+                  'snr_unresolved_micro'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -130,6 +136,13 @@ def create_dataframe(batch_size):
     df['obs_lim_mag'] = df['obs_lim_mag'].astype('object')
     df['obs_N_coadds'] = df['obs_N_coadds'].astype('object')
 
+    df['obs_mag_micro'] = df['obs_mag_micro'].astype('object')
+    df['mag_micro_error'] = df['mag_micro_error'].astype('object')
+    df['obs_snr_micro'] = df['obs_snr_micro'].astype('object')
+    df['mag_unresolved_micro'] = df['mag_unresolved_micro'].astype('object')
+    df['mag_unresolved_micro_error'] = df['mag_unresolved_micro_error'].astype('object')
+    df['snr_unresolved_micro'] = df['snr_unresolved_micro'].astype('object')
+
     return df
 
 
@@ -137,8 +150,10 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
                 model_mag, obs_mag, obs_mag_error, obs_snr, obs_mag_unresolved, mag_unresolved_error, snr_unresolved,
                 macro_mag, source_x, source_y, td_images, time_delay_distance, x_image, y_image,
                 gamma_lens, e1_lens, e2_lens, gamma1, gamma2, micro_kappa, micro_gamma, micro_s, micro_peak,
-                stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mag_method_peak, mag_method,
-                coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds):
+                stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mult_method_micro,
+                mag_method_peak, mag_method, mag_method_micro, coords, obs_skybrightness, obs_psf, obs_lim_mag,
+                obs_N_coadds, survey, rolling, obs_mag_micro, mag_micro_error, obs_snr_micro, mag_unresolved_micro,
+                mag_unresolved_micro_error, snr_unresolved_micro):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -189,14 +204,28 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param mult_method_peak: Bool. if True: detected with the multiplicity method at peak (corresponds to detection
             numbers in Wojtak et al.)
     :param mult_method: Bool. if True: detected with multiplicity method in actual observations
+    :param mult_method_micro: Bool. if True: detected with multiplicity method when microlensing is included
     :param mag_method_peak: Bool. if True: detected with the magnification method at peak (corresponds to detection
             numbers in Wojtak et al.)
     :param mag_method: Bool. if True: detected with magnification method in actual observations
+    :param mag_method_micro: Bool. if True: detected with magnification method when microlensing is included
     :param coords: right ascension and declination of the lensed supernova
     :param obs_skybrightness: array of length N_observations containing the sky brightness (in magnitudes)
     :param obs_psf: array of length N_observations containing the FWHM of the PSF for each observation (in arcsec)
     :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
     :param obs_N_coadds: array of length N_observations with the number of coadds for each observation
+    :param survey: whether the sky coordinates belong to the WFD/DDF/galactic plane and pole region
+    :param rolling: only for WFD; whether the cadence does not rol or is in the active or background rolling region.
+    :param obs_mag_micro: array of shape [N_observations, N_images] that contains the apparent magnitudes including
+           microlensing magnifications and perturbations due to weather
+    :param mag_micro_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+           for the microlensed light curves
+    :param obs_snr_micro: array of shape [N_observations, N_images] containing the S/N ratio for the microlensed curves
+    :param mag_unresolved_micro: array of len N_observations, containing the unresolved magnitudes for microlensing
+    :param mag_unresolved_micro_error: array of len N_observations, containing the magnitude errors for the unresolved
+           microlensed light curves
+    :param snr_unresolved_micro: array of len N_observations, containing the S/N of the unresolved microlensed curves
+
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
     """
@@ -238,13 +267,23 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['obs_end'][index % batch_size] = obs_end
     df['mult_method_peak'][index % batch_size] = mult_method_peak
     df['mult_method'][index % batch_size] = mult_method
+    df['mult_method_micro'][index % batch_size] = mult_method_micro
     df['mag_method_peak'][index % batch_size] = mag_method_peak
     df['mag_method'][index % batch_size] = mag_method
+    df['mag_method_micro'][index % batch_size] = mag_method_micro
     df['coords'][index % batch_size] = coords
     df['obs_skybrightness'][index % batch_size] = obs_skybrightness
     df['obs_psf'][index % batch_size] = obs_psf
     df['obs_lim_mag'][index % batch_size] = obs_lim_mag
     df['obs_N_coadds'][index % batch_size] = obs_N_coadds
+    df['survey'][index % batch_size] = survey
+    df['rolling'][index % batch_size] = rolling
+    df['obs_mag_micro'][index % batch_size] = obs_mag_micro
+    df['mag_micro_error'][index % batch_size] = mag_micro_error
+    df['obs_snr_micro'][index % batch_size] = obs_snr_micro
+    df['mag_unresolved_micro'][index % batch_size] = mag_unresolved_micro
+    df['mag_unresolved_micro_error'][index % batch_size] = mag_unresolved_micro_error
+    df['snr_unresolved_micro'][index % batch_size] = snr_unresolved_micro
     return df
 
 

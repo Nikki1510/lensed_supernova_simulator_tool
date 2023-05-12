@@ -18,7 +18,7 @@ def load_lightcurve(kappa, gamma, s, source_redshift):
     """
 
     # Directory containing the light curves
-    output_data_path = "light_curves/"
+    output_data_path = "../data/microlensing/light_curves/"
 
     # Light curve properties
     N_sim = 10000
@@ -341,17 +341,6 @@ def get_microlensing(name, kappa, gamma, s, source_redshift, bandpass):
 
 def main():
 
-    z_src = 1.05
-
-    # database_name should match filename of the database of interest (dependent on source redshift)
-    database_name = '../data/microlensing/databases/microlensing_database_z_%i_%s.db' % \
-                    (int(np.floor(z_src)), np.char.zfill(str(int(np.around(100 * (z_src - int(np.floor(z_src)))))), 2))
-
-    print(database_name)
-
-    micro, macro, time_range = get_microlensing(database_name, kappa=0.362, gamma=0.28, s=0.910,
-                                                source_redshift=z_src, bandpass='i')
-
     """
     # Fill database
     
@@ -393,6 +382,51 @@ def main():
     """
 
 
+
 if __name__ == '__main__':
     main()
 
+    z_src = 1.05
+
+    # database_name should match filename of the database of interest (dependent on source redshift)
+    database_name = '../data/microlensing/databases/microlensing_database_z_%i_%s.db' % \
+                    (int(np.floor(z_src)), np.char.zfill(str(int(np.around(100 * (z_src - int(np.floor(z_src)))))), 2))
+
+    # print(database_name)
+
+    # micro, macro, time_range = get_microlensing(database_name, kappa=0.362, gamma=0.28, s=0.910,
+    #                                            source_redshift=z_src, bandpass='i')
+
+    print(" --------------- ")
+
+    kappa, gamma, s = 0.362000, 0.280000, 0.910
+    source_redshift = 0.5
+
+    file_name = "kappa:%.3f_gamma:%.3f_s:%.3f_zsrc:%.2f" % (kappa, gamma, s, source_redshift)
+    print("File name: ", file_name)
+
+    file, _ = load_lightcurve(kappa, gamma, s, source_redshift)
+
+    for x in range(10):
+        # Extract the information about data_type, bandpass and SN_model from the key name
+        key = list(file.keys())[x]
+        data_type = key.split("_")[0]
+        data = file[key]
+
+        info = key.split("_")[-1]
+        SN_model = info[0]
+        bandpass = info[-1]
+
+        print(data_type, SN_model, bandpass, data)
+
+    """
+    
+
+    kappa, gamma, s = 3.620489580770965832e-01, 3.416429828804125046e-01, 4.430360463808165061e-01
+    source_redshift = 0.5
+
+    file_name = "kappa:%.3f_gamma:%.3f_s:%.3f_zsrc:%.2f" % (kappa, gamma, s, source_redshift)
+    print("File name: ", file_name)
+
+
+    """

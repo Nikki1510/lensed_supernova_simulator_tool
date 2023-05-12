@@ -102,7 +102,7 @@ class Lens:
 
     def velocity_dispersion(self):
         """
-        Calculates the velocity dispersion from the Einstein radius and angular diameter distances.
+        Calculates the velocity dispersion of an SIS from the Einstein radius and angular diameter distances.
 
         :return: velocity dispersion in km/s (float)
         """
@@ -141,7 +141,7 @@ class Lens:
         """
 
         # Scaling relation for absolute r-band magnitude
-        sigma = self.velocity_dispersion()
+        sigma = self.velocity_dispersion()      # velocity dispersion for SIS
         V = np.log10(sigma)
         Mr = (-0.37 + (0.37 ** 2 - (4 * 0.006 * (2.97 + V))) ** 0.5) / (2 * 0.006)
         Mr += np.random.randn() * (0.15 / 2.4)
@@ -150,7 +150,7 @@ class Lens:
         k_corr = self.k_correction(self.z_lens)
         m_i = Mr + self.cosmo.distmod(self.z_lens).value - k_corr
 
-        # Scaling relation for effective radius
+        # Scaling relation for effective radius (for SIS)
         R = 2.46 - 2.79 * V + 0.84 * V ** 2
         R += np.random.randn() * 0.11
         H_0 = self.cosmo.H(0).value

@@ -181,21 +181,18 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             # _______________________________________________________________________
 
             # Load random microlensing light curves
-            micro_lightcurves, macro_lightcurves, micro_times, mtiming1_, mtiming2_,\
-                mmtiming1_, mmtiming2_, mmtiming3_, mmtiming4_, mmtiming5_, mmtiming6_, mmtiming7_ = microlensing.micro_lightcurve_all_images(micro_kappa,
-                                                                                                         micro_gamma,
-                                                                                                         micro_s)
+            micro_contributions = microlensing.micro_lightcurve_all_images(micro_kappa, micro_gamma, micro_s)
+
             timer.end('microlensing_3')
             timer.initiate('microlensing_4')
             # _______________________________________________________________________
 
             # Calculate microlensing contribution at the peak
-            micro_peak = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times, td_images,
-                                                     0, peak=True)
+            micro_peak = microlensing.micro_snapshot(micro_contributions, td_images, 0, 'i', peak=True)
 
             # Check again if the peak brightness is detectable after microlensing
-            if not supernova.check_detectability_peak(lsst, model, macro_mag, micro_peak, add_microlensing):
-                continue
+            # if not supernova.check_detectability_peak(lsst, model, macro_mag, micro_peak, add_microlensing):
+            #    continue
 
             timer.end('microlensing_4')
             # _______________________________________________________________________
@@ -205,7 +202,8 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             micro_gamma = np.nan
             micro_s = np.nan
             micro_peak = 0.0
-            microlensing, micro_lightcurves, macro_lightcurves, micro_times = np.nan, np.nan, np.nan, np.nan
+            microlensing = np.nan
+            micro_contributions = np.ones(len(x_image)) * np.nan
         # _______________________________________________________________________
 
         # Perform the observations: generate image time series and light curves
@@ -213,11 +211,12 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
         timer.initiate('cadence')
 
         obs_days, obs_filters, obs_skybrightness, obs_lim_mag, obs_psf, obs_snr, obs_N_coadds, model_mag, obs_mag, \
-        app_mag_i_model, obs_mag_error, obs_start, time_series, coords = \
+        app_mag_i_model, obs_mag_error, obs_start, time_series, coords, Nobs_10yr, Nobs_3yr, obs_mag_micro, \
+        mag_micro_error, obs_snr_micro, app_mag_i_micro = \
             simulations.get_observations(lsst, supernova, gen, model, td_images, x_image, y_image, z_source, macro_mag,
                                          lens_model_class, source_model_class, lens_light_model_class, kwargs_lens,
                                          kwargs_source, kwargs_lens_light, add_microlensing, microlensing,
-                                         micro_lightcurves, macro_lightcurves, micro_times, obs_upper_limit, Show)
+                                         micro_contributions, obs_upper_limit, Show)
 
         L = len(time_series)
 
@@ -239,16 +238,21 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
 
         # Check image multiplicity method
         mult_method = simulations.check_mult_method(supernova, sep, lsst, model, macro_mag, obs_mag, obs_lim_mag,
+                                                    obs_filters, 0.0, add_microlensing=False)
+        mult_method_micro = simulations.check_mult_method(supernova, sep, lsst, model, macro_mag, obs_mag_micro, obs_lim_mag,
                                                     obs_filters, micro_peak, add_microlensing)
 
         # Check magnification method
         mag_method = simulations.check_mag_method(supernova, app_mag_i_model, lsst, M_i, cosmo, z_lens, mag_gap)
+        mag_method_micro = simulations.check_mag_method(supernova, app_mag_i_micro, lsst, M_i, cosmo, z_lens, mag_gap)
 
         if Show:
             print("Theoretically visible with image multiplicity method?           ", mult_method_peak)
             print("Theoretically visible with magnification method?                ", mag_method_peak)
             print("Observations allow for detection with image multiplicity method?", mult_method)
             print("Observations allow for detection with magnification method?     ", mag_method)
+            print("Microlensing allow for detection with image multiplicity method?", mult_method_micro)
+            print("Microlensing allow for detection with magnification method?     ", mag_method_micro)
 
         # Failed systems
         # if cadence_try == N_tries - 1:
@@ -276,21 +280,24 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
         # Compute the maximum brightness in each bandpass
         obs_peak = supernova.brightest_obs_bands(lsst, macro_mag, obs_mag, obs_filters)
 
+        # Compute unresolved brightness
+        obs_mag_unresolved, mag_unresolved_error, snr_unresolved = supernova.get_mags_unresolved(obs_mag, lsst,
+                                                                                                 obs_filters,
+                                                                                                 obs_lim_mag)
+        if add_microlensing:
+            mag_unresolved_micro, mag_unresolved_micro_error, \
+            snr_unresolved_micro = supernova.get_mags_unresolved(obs_mag_micro, lsst, obs_filters, obs_lim_mag)
+        else:
+            mag_unresolved_micro, mag_unresolved_micro_error, snr_unresolved_micro = np.nan, np.nan, np.nan
+
+        # Determine if the observation belongs to the WFD/DDF/galactic plane
+        survey, rolling = lsst.determine_survey(Nobs_3yr, Nobs_10yr, obs_start)
+
         # _______________________________________________________________________
 
         if Show:
 
             day_range = np.linspace(min(td_images) - 100, max(td_images) + 100, 250)
-
-            if add_microlensing:
-                micro_day_range = []
-                for d in day_range:
-                    micro_day_range.append(
-                        np.array(microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times,
-                                                             td_images, d)))
-                micro_day_range = np.array(micro_day_range)
-            else:
-                micro_day_range = np.nan
 
             sigma_bkg_i = lsst.single_band_properties('i')[2]
             data_class_i = lsst.grid(sigma_bkg_i)[0]
@@ -304,30 +311,35 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             visualise.plot_td_surface(lens_model_class, kwargs_lens, source_x, source_y, x_image, y_image)
 
             # Plot light curve with observation epochs
-            visualise.plot_light_curves(model, day_range)
-            visualise.plot_light_curves_perband(model, day_range, model_mag, obs_mag, obs_mag_error)
+            visualise.plot_light_curves(model, day_range, obs_mag_unresolved, mag_unresolved_error)
+            visualise.plot_light_curves_perband(z_source, model, day_range, model_mag, obs_mag, obs_mag_error, add_microlensing,
+                                                microlensing, micro_contributions)
+            if add_microlensing:
+                visualise.plot_light_curves_perband(z_source, model, day_range, model_mag, obs_mag_micro,
+                                                    mag_micro_error, add_microlensing, microlensing, micro_contributions)
 
             # Display all observations:
-            visualise.plot_observations(time_series)
+            # visualise.plot_observations(time_series)
 
         # ____________________________________________________________________________
 
-        obs_mag_unresolved, mag_unresolved_error, snr_unresolved = supernova.get_mags_unresolved(obs_mag, lsst, obs_filters, obs_lim_mag)
 
         # Save the desired quantities in the data frame
-        df = write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
+        df = write_to_df(df, index, batch_size, np.nan, z_source, z_lens, H_0, theta_E, obs_peak, obs_days,
                          obs_filters, model_mag, obs_mag, obs_mag_error, obs_snr, obs_mag_unresolved, mag_unresolved_error,
                          snr_unresolved, macro_mag, source_x, source_y,
                          td_images, time_delay_distance, x_image, y_image, gamma_lens, e1_lens, e2_lens, gamma1,
                          gamma2, micro_kappa, micro_gamma, micro_s, micro_peak, x1, c, M_B, obs_start, obs_end,
-                         mult_method_peak, mult_method, mag_method_peak, mag_method, coords, obs_skybrightness, obs_psf,
-                         obs_lim_mag, obs_N_coadds)
+                         mult_method_peak, mult_method, mult_method_micro, mag_method_peak, mag_method, mag_method_micro,
+                         coords, obs_skybrightness, obs_psf, obs_lim_mag, obs_N_coadds, survey, rolling, obs_mag_micro,
+                         mag_micro_error, obs_snr_micro, mag_unresolved_micro, mag_unresolved_micro_error,
+                         snr_unresolved_micro)
 
         # Check if the data frame is full
         if (index+1) % batch_size == 0 and index > 1:
             if Save:
                 # Save data frame to laptop
-                df.to_pickle(path + "Baselinev30_coadds_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
+                df.to_pickle(path + "Baselinev30_microlensing_numimages=" + str(int(num_images)) + "_batch" + str(str(batch).zfill(3)) + ".pkl")
 
             if (index+1) < num_samples:
                 # Start a new, empty data frame
@@ -355,6 +367,8 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
     print("Number of attempts: ", counter)
     print(" ")
     print(df)
+
+    # print("Timing dict: ", timer.timing_dict)
 
     return df, timer.timing_dict
 

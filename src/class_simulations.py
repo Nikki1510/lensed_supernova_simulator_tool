@@ -98,8 +98,8 @@ class Simulations:
         app_mag_i_unresolved = 50
         for t in time_range:
             lim_mag_i = lsst.single_band_properties('i')[1]
-            app_mag_i_temp, _, _, _ = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, lsst,
-                                                                  'i', lim_mag_i, add_microlensing)
+            app_mag_i_temp = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, lsst,
+                                                                  'i', lim_mag_i, add_microlensing=False)[0]
             app_mag_i_unresolved_temp = supernova.get_mags_unresolved(app_mag_i_temp, lsst, ['i'], 24.0, filler=None)[0]
 
             if app_mag_i_unresolved_temp < app_mag_i_unresolved:
@@ -169,8 +169,8 @@ class Simulations:
 
     def get_observations(self, lsst, supernova, gen, model, td_images, x_image, y_image, z_source, macro_mag,
                          lens_model_class, source_model_class, lens_light_model_class, kwargs_lens, kwargs_source,
-                         kwargs_lens_light, add_microlensing, microlensing, micro_lightcurves, macro_lightcurves,
-                         micro_times, obs_upper_limit, Show, N_tries=20):
+                         kwargs_lens_light, add_microlensing, microlensing, micro_contributions, obs_upper_limit,
+                         Show, N_tries=20):
         """
 
         :param lsst: telescope class where the observations are modelled after. choose between 'LSST' and 'ZTF'
@@ -190,11 +190,7 @@ class Simulations:
         :param kwargs_lens_light: list of keywords arguments for the lens light model
         :param add_microlensing: bool. if False: no microlensing. if True: also add microlensing to the peak
         :param microlensing: class that contains functions related to microlensing
-        :param micro_lightcurves: list of length [num_images] containing arrays with the microlensing contributions
-                 to the light curve (in magnitudes)
-        :param macro_lightcurves: list of length [num_images] containing arrays with the macrolensed light curve
-        :param micro_times: list of length [num_images] containing arrays with the time stamps for the micro and
-                 macrolensing light curves
+        :param micro_contributions: list of length [num_images] containing microlensing dictionaries
         :param obs_upper_limit: minimum number of observations (below which systems are discarded)
         :param Show: bool. if True: figures and print statements show the properties of the lensed SN systems
         :param N_tries: Number of times different cadence realisations should be tried for this lensed SN system
@@ -206,6 +202,9 @@ class Simulations:
 
             ra, dec, opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness = lsst.opsim_observation(
                 gen)
+
+            Nobs_10yr = len(opsim_times)
+            Nobs_3yr = len(opsim_times[opsim_times < 61325])
 
             coords = np.array([ra, dec])
 
@@ -257,6 +256,11 @@ class Simulations:
             app_mag_i_model = []
             obs_snr = []
 
+            obs_mag_micro = []
+            mag_micro_error = []
+            obs_snr_micro = []
+            app_mag_i_micro = []
+
             for observation in range(obs_upper_limit):
 
                 if observation > len(opsim_times) - 1:
@@ -288,19 +292,20 @@ class Simulations:
 
                 # Calculate microlensing contribution to light curve on this specific point in time
                 if add_microlensing:
-                    micro_day = microlensing.micro_snapshot(micro_lightcurves, macro_lightcurves, micro_times,
-                                                            td_images, day)
+                    micro_day = microlensing.micro_snapshot(micro_contributions, td_images, day, band)
+                    micro_day_i = microlensing.micro_snapshot(micro_contributions, td_images, day, 'i')
                 else:
                     micro_day = np.nan
+                    micro_day_i = np.nan
 
                 # Calculate apparent magnitudes
-                app_mag_model, app_mag_obs, app_mag_error, snr = supernova.get_app_magnitude(model, day, macro_mag,
-                                                                                             td_images, micro_day,
-                                                                                             lsst, band, lim_mag,
-                                                                                             add_microlensing)
-                app_mag_model_i, app_mag_obs_i, _, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images,
-                                                                                   micro_day, lsst,
-                                                                                   'i', 24.0, add_microlensing)
+                app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, \
+                snr_micro = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, lsst, band,
+                                                        lim_mag, add_microlensing)
+
+                app_mag_model_i, app_mag_obs_i, _, _, \
+                app_mag_obs_micro_i, _, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day_i,
+                                                                        lsst, 'i', 24.0, add_microlensing)
 
                 model_mag.append(np.array(app_mag_model))
                 obs_mag.append(np.array(app_mag_obs))
@@ -308,15 +313,22 @@ class Simulations:
                 obs_mag_error.append(app_mag_error)
                 obs_snr.append(snr)
 
+                obs_mag_micro.append(np.array(app_mag_micro))
+                mag_micro_error.append(np.array(app_mag_micro_error))
+                obs_snr_micro.append(np.array(snr_micro))
+                app_mag_i_micro.append(np.array(app_mag_obs_micro_i))
+
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_obs, band)
 
+                """
                 # Create the image and save it to the time-series list
                 image_sim = lsst.generate_image(x_image, y_image, amp_ps, lens_model_class, source_model_class,
                                                 lens_light_model_class, kwargs_lens, kwargs_source, kwargs_lens_light,
                                                 band, psf)
 
                 time_series.append(image_sim)
+                """
 
                 # _______________________________________________________________________
 
@@ -332,6 +344,11 @@ class Simulations:
             obs_mag = np.array(obs_mag)
             app_mag_i_model = np.array(app_mag_i_model)
             obs_mag_error = np.array(obs_mag_error)
+
+            obs_mag_micro = np.array(obs_mag_micro)
+            mag_micro_error = np.array(mag_micro_error)
+            obs_snr_micro = np.array(obs_snr_micro)
+            app_mag_i_micro = np.array(app_mag_i_micro)
 
             obs_mag = obs_mag[:len(obs_days)]
             model_mag = model_mag[:len(obs_days)]
@@ -349,7 +366,8 @@ class Simulations:
             #     continue
 
             return obs_days, obs_filters, obs_skybrightness, obs_lim_mag, obs_psf, obs_snr, obs_N_coadds, model_mag, \
-                   obs_mag, app_mag_i_model, obs_mag_error, obs_start, time_series, coords
+                   obs_mag, app_mag_i_model, obs_mag_error, obs_start, time_series, coords, Nobs_10yr, Nobs_3yr, \
+                   obs_mag_micro, mag_micro_error, obs_snr_micro, app_mag_i_micro
 
 
 

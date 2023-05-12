@@ -159,6 +159,11 @@ class Supernova:
 
         for band in telescope.bandpasses:
 
+            if band == 'r' and self.z_source > 1.6:
+                continue
+            elif band == 'g' and self.z_source > 0.8:
+                continue
+
             num_images = len(macro_mag)
 
             if num_images == 2:
@@ -202,6 +207,11 @@ class Supernova:
         """
 
         for band in telescope.bandpasses:
+
+            if band == 'r' and self.z_source > 1.6:
+                continue
+            elif band == 'g' and self.z_source > 0.8:
+                continue
 
             num_images = len(macro_mag)
 
@@ -333,44 +343,56 @@ class Supernova:
         """
 
         sncosmo_filter = self.get_sncosmo_filter(telescope_class.telescope, band)
-
-        app_mag_ps_test = model.bandmag(sncosmo_filter, time=day - td_images, magsys='ab')
-        app_mag_ps_test -= 2.5 * np.log10(macro_mag)
-
         zeropoint = telescope_class.single_band_properties(band)[3]
+
+        # Calculate magnitude, add microlensing, convert back to flux
+        app_mag_ps = model.bandmag(sncosmo_filter, time=day - td_images, magsys='ab')
+        app_mag_ps -= 2.5 * np.log10(macro_mag)
+
+        if add_microlensing:
+            app_mag_ps += micro_day
+
+        flux_micro = 10**((zeropoint - app_mag_ps)/2.5)
+        flux_ps = model.bandflux(sncosmo_filter, time=day - td_images, zp=zeropoint, zpsys='ab')
 
         # Calculate limiting flux from zero point and limiting magnitude
         lim_flux = 10**((zeropoint - lim_mag)/2.5)
         flux_error = lim_flux / 5
 
-        flux_ps = model.bandflux(sncosmo_filter, time=day - td_images, zp=zeropoint, zpsys='ab')
-
         # Apply macro magnification to image fluxes
         flux_ps *= macro_mag
         flux_ps[flux_ps < 0.0] = 0.0
         # Perturb the flux according to the flux error (from the sky signal)
-        new_flux_ps = np.random.normal(loc=flux_ps, scale=abs(flux_error))
+        flux_perturbation = np.random.normal(loc=0, scale=abs(flux_error))
+
+        new_flux_ps = flux_ps + flux_perturbation
         new_flux_ps[new_flux_ps < 0.0] = 0.0
         new_flux_ps[flux_ps <= flux_error] = 0.0
 
+        new_flux_micro = flux_micro + flux_perturbation
+        new_flux_micro[new_flux_micro < 0.0] = 0.0
+        new_flux_micro[flux_micro <= flux_error] = 0.0
+
         # Calculate S/N
         snr = new_flux_ps / flux_error
+        snr_micro = new_flux_micro / flux_error
 
         # Convert to magnitudes
         app_mag_model = zeropoint - 2.5 * np.log10(flux_ps)
+
         app_mag_obs = zeropoint - 2.5*np.log10(new_flux_ps)
         app_mag_obs = np.nan_to_num(app_mag_obs, nan=np.inf)
-        app_mag_obs[app_mag_obs >= 50] = np.inf
         app_mag_error = abs(-2.5 * flux_error / (new_flux_ps * np.log(10)))
-
         app_mag_obs[app_mag_obs > 30] = np.inf
         app_mag_error[app_mag_obs > 30] = np.nan
 
-        if add_microlensing:
-            app_mag_obs += micro_day
+        app_mag_micro = zeropoint - 2.5 * np.log10(new_flux_micro)
+        app_mag_micro = np.nan_to_num(app_mag_micro, nan=np.inf)
+        app_mag_micro_error = abs(-2.5 * flux_error / (new_flux_micro * np.log(10)))
+        app_mag_micro[app_mag_micro > 30] = np.inf
+        app_mag_micro_error[app_mag_micro > 30] = np.nan
 
-        # new_peak_brightness_image = np.minimum(peak_brightness_image, app_mag_ps)
-        return app_mag_model, app_mag_obs, app_mag_error, snr  # , new_peak_brightness_image
+        return app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, snr_micro
 
     def get_mags_unresolved(self, obs_mag, telescope_class, obs_filters, obs_lim_mag, filler=np.nan):
         """

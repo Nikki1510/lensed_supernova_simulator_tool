@@ -260,7 +260,6 @@ class Telescope:
             opsim_sky_brightness = np.array(obs['filtSkyBrightness'])
             break
 
-        print(" ")
         return opsim_ra, opsim_dec, opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness
 
     def select_observation_time_period(self, times, filters, psf, lim_mag, sky_brightness, mjd_low, mjd_high=61325):
@@ -350,6 +349,37 @@ class Telescope:
         lim_mag_array = np.array(lim_mag_list)
         lim_mag_new = 1.25 * np.log10(np.sum(10**(0.8 * lim_mag_array)))
         return lim_mag_new
+
+    def determine_survey(self, Nobs_3yr, Nobs_10yr, obs_start):
+        """
+        Determine whether the observation belongs to the WFD, DDF or galactic plane and pole region.
+        If WFD, determine whether the cadence is rolling and the coordinates belong to the active or background region.
+
+        :param Nobs_3yr: Number of visits after 3 years of LSST observations
+        :param Nobs_10yr: Number of visits after 10 years of LSST observations
+        :param obs_start: MJD of the start of the observation
+        :return:
+        """
+
+        if Nobs_10yr < 400:
+            survey = 'galactic plane'
+            rolling = np.nan
+        elif Nobs_10yr > 1000:
+            survey = 'DDF'
+            rolling = np.nan
+        else:
+            survey = 'WFD'
+
+            if obs_start <= 60768:
+                rolling = 'no rolling'
+
+            else:
+                if Nobs_3yr > 255:
+                    rolling = 'active'
+                else:
+                    rolling = 'background'
+
+        return survey, rolling
 
     def get_weather(self, zeropoint, skysig, psf_sig):
         """

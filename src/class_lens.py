@@ -49,7 +49,7 @@ class Lens:
         e1_lens, e2_lens = param_util.phi_q2_ellipticity(phi_lens, q_lens)
 
         if model == 'PEMD':
-            gamma_lens = np.random.normal(2.0, 0.1)
+            gamma_lens = np.random.normal(2.0, 0.2)  # (2.0, 0.1)
             kwargs_spemd = {'theta_E': self.theta_E, 'gamma': gamma_lens, 'center_x': 0.0, 'center_y': 0.0,
                             'e1': e1_lens, 'e2': e2_lens}
         elif model == 'SIE':

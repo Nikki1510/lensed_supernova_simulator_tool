@@ -19,7 +19,8 @@ class Simulations:
 
     # def __init__(self):
 
-    def initialise_parameters(self, lsst, z_source_list_, z_lens_list_, theta_E_list_, sample, sample_index, fixed_H0):
+    def initialise_parameters(self, lsst, z_source_list_, z_lens_list_, theta_E_list_, sample, sample_index, fixed_H0,
+                              num_images, attempts):
         """
         Initialise supernova and cosmology parameters.
 
@@ -31,6 +32,8 @@ class Simulations:
                        the simulation
         :param sample_index: counts which configuration from the sample array to select
         :param fixed_H0: bool. if True: H0 is kept to a fixed value (evaluationsest). if False: H0 varies (training/test set)
+        :param num_images: number of lensed supernova images. choose between 2 (for doubles) and 4 (for quads)
+        :param attempts: counts number of attempts per configuration
         :return: values for z_source, z_lens, theta_E, H_0, cosmo, time_delay_distance, source_x, source_y used in this run
         """
 
@@ -45,12 +48,17 @@ class Simulations:
 
         cosmo = FlatLambdaCDM(H0=H_0, Om0=0.315)
         time_delay_distance = get_time_delay_distance(z_source, z_lens, cosmo)
-        source_x = np.random.uniform(-theta_E, theta_E)
-        source_y = np.random.uniform(-theta_E, theta_E)
+
+        if num_images == 2:
+            source_x = np.random.uniform(-theta_E, theta_E)
+            source_y = np.random.uniform(-theta_E, theta_E)
+        elif num_images == 4:
+            source_x = np.random.uniform(-0.4 * theta_E, 0.4 * theta_E)
+            source_y = np.random.uniform(-0.4 * theta_E, 0.4 * theta_E)
 
         return z_source, z_lens, theta_E, H_0, cosmo, time_delay_distance, source_x, source_y
 
-    def check_mult_method_peak(self, supernova, sep, lsst, model, macro_mag):
+    def check_mult_method_peak(self, supernova, sep, lsst, model, macro_mag, td_images, add_microlensing, microlensing, micro_contributions):
         """
         Check whether multiple images of the lensed SN are visible (evaluated at peak brightness for each image).
 
@@ -59,6 +67,7 @@ class Simulations:
         :param lsst: telescope class where the observations are modelled after. choose between 'LSST' and 'ZTF'
         :param model: SNcosmo model for the supernova light curve
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
+        :param micro_peak: array of length [num_images] containing the microlensing contributions at peak
         :return: mult_method_peak: bool. if True: lensed SN passes the image multiplicity method
         """
 
@@ -68,13 +77,13 @@ class Simulations:
         if sep > 0.5 and sep < 4.0:
 
             # Check peak brightness and flux ratio: detectable?
-            if supernova.check_detectability_peak(lsst, model, macro_mag, 0.0, False):
+            if supernova.check_detectability_peak(lsst, model, macro_mag, td_images, add_microlensing, microlensing, micro_contributions):
                 mult_method_peak = True
 
         return mult_method_peak
 
-    def check_mag_method_peak(self, td_images, lsst, supernova, model, macro_mag, add_microlensing, cosmo, z_lens, M_i,
-                              mag_gap):
+    def check_mag_method_peak(self, td_images, lsst, supernova, model, macro_mag, z_source, m_lens, mag_gap,
+                              add_microlensing, microlensing, micro_contributions):
         """
         Check whether the unresolved supernova images are brighter than a typical type Ia SN at the lens redshift.
 
@@ -83,35 +92,71 @@ class Simulations:
         :param supernova: class that contains supernova functions
         :param model: SNcosmo model for the supernova light curve
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
-        :param add_microlensing: bool. if False: no microlensing. if True: also add microlensing to the peak
-        :param cosmo: instance of astropy containing the background cosmology
-        :param z_lens: redshift of the lens galaxy (float)
-        :param M_i: absolute magnitude of the lensed SN in the i-band
+        :param z_source: redshift of the supernova (float)
+        :param m_lens: array with for each band the apparent magnitude of a vanilla type Ia at the lens redshift
         :param mag_gap: number of magnitudes the lensed SN must be brighter than a typical Ia at the lens redshift
-        :return: mag_method_peak: bool. if True: lensed SN passes the magnification method
+        :param add_microlensing: bool. if False: no microlensing. if True: also add microlensing to the peak
+        :param microlensing: microlensing class
+        :param micro_contributions: list of length [num_images] containing microlensing dictionaries
+        :return: mag_method_peak: bool. if True: lensed SN passes the magnification method,
+                 peak_magnitudes: array containing the unresolved peak apparent magnitudes in each band
         """
 
         mag_method_peak = False
 
         # Sample different times to get the brightest combined flux
-        time_range = np.linspace(min(td_images), max(td_images), 100)
-        app_mag_i_unresolved = 50
-        for t in time_range:
-            lim_mag_i = lsst.single_band_properties('i')[1]
-            app_mag_i_temp = supernova.get_app_magnitude(model, t, macro_mag, td_images, np.nan, lsst,
-                                                                  'i', lim_mag_i, add_microlensing=False)[0]
-            app_mag_i_unresolved_temp = supernova.get_mags_unresolved(app_mag_i_temp, lsst, ['i'], 24.0, filler=None)[0]
+        time_range = np.linspace(min(td_images)-10, max(td_images), 200)
 
-            if app_mag_i_unresolved_temp < app_mag_i_unresolved:
-                app_mag_i_unresolved = app_mag_i_unresolved_temp
+        # Save peak magnitudes in each band
+        peak_magnitudes = []
 
-        # Checks whether eq. 1 from Wojtak et al. (2019) holds
-        if app_mag_i_unresolved < M_i + cosmo.distmod(z_lens).value + mag_gap:
-            mag_method_peak = True
+        for band in lsst.bandpasses:
 
-        return mag_method_peak
+            if band == 'r' and z_source > 1.6:
+                peak_magnitudes.append(np.nan)
+                continue
+            elif band == 'g' and z_source > 0.8:
+                peak_magnitudes.append(np.nan)
+                continue
 
-    def check_mult_method(self, supernova, sep, lsst, model, macro_mag, obs_mag, obs_lim_mag, obs_filters, micro_peak,
+            app_mag_unresolved = 50
+
+            for t in time_range:
+                lim_mag_band = lsst.single_band_properties(band)[4]
+
+                if add_microlensing:
+                    micro_day = microlensing.micro_snapshot(micro_contributions, td_images, t, band)
+                    app_mag_model = supernova.get_app_magnitude(model, t, macro_mag, td_images, micro_day, lsst, band,
+                                                           lim_mag_band, add_microlensing)[7]
+                else:
+                    micro_day = np.nan
+                    app_mag_model = supernova.get_app_magnitude(model, t, macro_mag, td_images, micro_day, lsst, band,
+                                                                lim_mag_band, add_microlensing)[1]
+
+                app_mag_unresolved_temp = supernova.get_mags_unresolved(app_mag_model, lsst, [band], lim_mag_band, filler=None)[0]
+
+                if app_mag_unresolved_temp < app_mag_unresolved:
+                    app_mag_unresolved = app_mag_unresolved_temp
+
+            # Checks whether eq. 1 from Wojtak et al. (2019) holds
+            if app_mag_unresolved < m_lens[band] + mag_gap:
+                if app_mag_unresolved < lim_mag_band:
+                    mag_method_peak = True
+
+            # if app_mag_unresolved < M + cosmo.distmod(z_lens).value + mag_gap:
+            #    mag_method_peak = True
+
+            #print("band: ", band)
+            #print("app_mag_min: ", app_mag_unresolved)
+            #print("comparison: ", m_lens[band] + mag_gap)
+            #print("detected? ", mag_method_peak)
+            #print(" ")
+
+            peak_magnitudes.append(app_mag_unresolved)
+
+        return mag_method_peak, np.array(peak_magnitudes)
+
+    def check_mult_method(self, supernova, sep, lsst, model, macro_mag, obs_mag, obs_snr, obs_lim_mag, obs_filters, micro_peak,
                           add_microlensing):
         """
         Check whether multiple images of the lensed SN are visible.
@@ -123,6 +168,7 @@ class Simulations:
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
         :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
             observation and each image (perterbed by weather)
+        :param obs_snr: array of shape [N_observations, N_images] containing the S/N ratio for each image
         :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
         :param obs_filters: array of length N_observations containing the bandpasses for each observation
         :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak
@@ -133,39 +179,61 @@ class Simulations:
         mult_method = False
 
         if sep > 0.5 and sep < 4.0:
+
             # Check maximum brightness and flux ratio: detectable?
-            if supernova.check_detectability(lsst, model, macro_mag, obs_mag, obs_lim_mag, obs_filters, micro_peak,
+            if supernova.check_detectability(lsst, model, macro_mag, obs_mag, obs_snr, obs_lim_mag, obs_filters, micro_peak,
                                              add_microlensing):
                 mult_method = True
 
         return mult_method
 
-    def check_mag_method(self, supernova, app_mag_i_model, lsst, M_i, cosmo, z_lens, mag_gap):
+    def check_mag_method(self, app_mag_unresolved, snr_unresolved, obs_filters, lsst, cosmo, z_lens, z_source, m_lens, mag_gap):
         """
         Check whether the unresolved supernova images are brighter than a typical type Ia SN at the lens redshift.
 
-        :param supernova: class that contains supernova functions
-        :param app_mag_i_model: array of shape [N_observations, N_images] that contains the model apparent magnitudes
-               of the lensed SN in the i-band (without taking into account weather)
+        :param app_mag_unresolved: array of shape [N_observations] that contains the unresolved apparent magnitudes
+        :param snr_unresolved: array of shape [N_observations] that contains the S/N ratio of the unresolved observations
+        :param obs_filters: array of length N_observations containing the bandpasses for each observation
         :param lsst: telescope class where the observations are modelled after. choose between 'LSST' and 'ZTF'
-        :param M_i: absolute magnitude of the lensed SN in the i-band
         :param cosmo: instance of astropy containing the background cosmology
         :param z_lens: redshift of the lens galaxy (float)
+        :param z_source: redshift of the supernova (float)
+        :param m_lens: array with for each band the apparent magnitude of a vanilla type Ia at the lens redshift
         :param mag_gap: number of magnitudes the lensed SN must be brighter than a typical Ia at the lens redshift
         :return: mag_method: bool. if True: lensed SN passes the magnification method
         """
 
-        mag_method = False
+        for band in lsst.bandpasses:
 
-        app_mag_i_obs_min = np.min(supernova.get_mags_unresolved(app_mag_i_model, lsst,
-                                                                 ['i' for i in range(len(app_mag_i_model))],
-                                                                 [24 for i in range(len(app_mag_i_model))],
-                                                                 filler=np.nan)[0])
+            if band == 'r' and z_source > 1.6:
+                continue
+            elif band == 'g' and z_source > 0.8:
+                continue
 
-        if app_mag_i_obs_min < M_i + cosmo.distmod(z_lens).value + mag_gap:
-            mag_method = True
+            mask = np.where((obs_filters == band) & (np.isfinite(app_mag_unresolved)))
+            if len(app_mag_unresolved[mask]) == 0:
+                continue
 
-        return mag_method
+            # Find minimum unresolved magnitude (and corresponding S/N ratio)
+            app_mag_min_index = np.argmin(app_mag_unresolved[mask])
+            app_mag_min = app_mag_unresolved[mask][app_mag_min_index]
+            snr_min = snr_unresolved[mask][app_mag_min_index]
+
+            #print("band: ", band)
+            #print("app_mag_min: ", app_mag_min)
+            #print("comparison: ", m_lens[band] + mag_gap)
+            #print("detected? ", app_mag_min < m_lens[band] + mag_gap)
+            #print("snr: ", snr_min)
+            #print(" ")
+
+            # Check if it passes the magnification method condition
+            if app_mag_min < m_lens[band] + mag_gap:
+                # Is the S/N ratio high enough for a detection?
+                if snr_min >= 5.0:
+                    return True
+
+        return False
+
 
     def get_observations(self, lsst, supernova, gen, model, td_images, x_image, y_image, z_source, macro_mag,
                          lens_model_class, source_model_class, lens_light_model_class, kwargs_lens, kwargs_source,
@@ -226,7 +294,8 @@ class Simulations:
             # Cut the observations to start at offset and end after year 3
             opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness = \
                 lsst.select_observation_time_period(opsim_times, opsim_filters, opsim_psf, opsim_lim_mag,
-                                                    opsim_sky_brightness, mjd_low=offset, mjd_high=61325)
+                                                    opsim_sky_brightness, mjd_low=offset, mjd_high=61325)  # !!! Remove: change back: mjd_low=offset, mjd_high=61325
+            # Testing: mjd_low=60220, mjd_high=63325
 
             if len(opsim_times) == 0:
                 continue
@@ -236,9 +305,14 @@ class Simulations:
             # Shift the observations back to the SN time frame
             opsim_times -= (obs_start - start_sn)
 
+            # Testing: comment out
             # Perform nightly coadds
             opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness, N_coadds = \
                 lsst.coadds(opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness)
+
+            # Testing: uncomment
+            #if len(opsim_filters) < 300:  # !!! Remove !!!
+            #    continue
 
             # Save all important properties
             time_series = []
@@ -261,9 +335,20 @@ class Simulations:
             obs_snr_micro = []
             app_mag_i_micro = []
 
+            # !!! Remove !!! Testing:
+            #opsim_times = np.linspace(opsim_times[0], opsim_times[0]+100, 400)
+            #opsim_filters = opsim_filters[:len(opsim_times)]  # ['g', 'r', 'i', 'z', 'y'] * 80  # ['i' for i in range(len(opsim_times))]
+
+            #opsim_lim_mag = opsim_lim_mag[:len(opsim_times)]
+
+            #opsim_sky_brightness = [26 for i in range(len(opsim_times))]
+            #opsim_psf = [24 for i in range(len(opsim_times))]
+            #N_coadds = [24 for i in range(len(opsim_times))]
+            # !!! Remove !!!
+
             for observation in range(obs_upper_limit):
 
-                if observation > len(opsim_times) - 1:
+                if observation > len(opsim_filters) - 1:
                     break
 
                 day = opsim_times[observation]
@@ -274,11 +359,35 @@ class Simulations:
                 # For the r-filter, light curves with z > 1.6 are not defined. Skip these.
                 # For the g-filter, light curves with z > 0.8 are not defined. Skip these.
                 if band == 'r' and z_source > 1.6:
-                    continue
+                    # continue
+                    filling = np.ones(len(td_images)) * np.nan
+                    app_mag_model = app_mag_obs = app_mag_error = snr = app_mag_micro = app_mag_micro_error = snr_micro = filling
+                    app_mag_model_i = app_mag_model_i_micro = app_mag_obs_micro_i = filling
+
                 elif band == 'g' and z_source > 0.8:
-                    continue
+                    # continue
+                    filling = np.ones(len(td_images)) * np.nan
+                    app_mag_model = app_mag_obs = app_mag_error = snr = app_mag_micro = app_mag_micro_error = snr_micro = filling
+                    app_mag_model_i = app_mag_model_i_micro = app_mag_obs_micro_i = filling
+
                 elif band == 'u':
                     continue
+                else:
+                    # Calculate microlensing contribution to light curve on this specific point in time
+                    if add_microlensing:
+                        micro_day = microlensing.micro_snapshot(micro_contributions, td_images, day, band)
+                        micro_day_i = microlensing.micro_snapshot(micro_contributions, td_images, day, 'i')
+                    else:
+                        micro_day = np.nan
+                        micro_day_i = np.nan
+
+                    # Calculate apparent magnitudes
+                    app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, \
+                    snr_micro, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, lsst, band,
+                                                            lim_mag, add_microlensing)
+
+                    app_mag_model_i, app_mag_obs_i, _, _, app_mag_obs_micro_i, _, _, app_mag_model_i_micro = \
+                        supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day_i, lsst, 'i', 24.0, add_microlensing)
 
                 if day > end_sn:
                     break
@@ -290,23 +399,6 @@ class Simulations:
                 obs_psf.append(psf)
                 obs_N_coadds.append(N_coadds[observation])
 
-                # Calculate microlensing contribution to light curve on this specific point in time
-                if add_microlensing:
-                    micro_day = microlensing.micro_snapshot(micro_contributions, td_images, day, band)
-                    micro_day_i = microlensing.micro_snapshot(micro_contributions, td_images, day, 'i')
-                else:
-                    micro_day = np.nan
-                    micro_day_i = np.nan
-
-                # Calculate apparent magnitudes
-                app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, \
-                snr_micro = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day, lsst, band,
-                                                        lim_mag, add_microlensing)
-
-                app_mag_model_i, app_mag_obs_i, _, _, \
-                app_mag_obs_micro_i, _, _ = supernova.get_app_magnitude(model, day, macro_mag, td_images, micro_day_i,
-                                                                        lsst, 'i', 24.0, add_microlensing)
-
                 model_mag.append(np.array(app_mag_model))
                 obs_mag.append(np.array(app_mag_obs))
                 app_mag_i_model.append(np.array(app_mag_model_i))
@@ -316,7 +408,7 @@ class Simulations:
                 obs_mag_micro.append(np.array(app_mag_micro))
                 mag_micro_error.append(np.array(app_mag_micro_error))
                 obs_snr_micro.append(np.array(snr_micro))
-                app_mag_i_micro.append(np.array(app_mag_obs_micro_i))
+                app_mag_i_micro.append(np.array(app_mag_model_i_micro))
 
                 # Calculate amplitude parameter
                 amp_ps = lsst.app_mag_to_amplitude(app_mag_obs, band)

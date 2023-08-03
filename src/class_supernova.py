@@ -6,6 +6,9 @@ from lenstronomy.LightModel.light_model import LightModel
 from astropy.cosmology import FlatLambdaCDM
 import scipy.stats as stats
 import sncosmo
+from math import ceil
+import traceback
+import time
 
 
 class Supernova:
@@ -29,7 +32,7 @@ class Supernova:
         self.source_x = source_x
         self.source_y = source_y
 
-    def get_image_pos_magnification(self, lens_model_class, kwargs_lens, min_distance, search_window):
+    def get_image_pos_magnification(self, lens_model_class, kwargs_lens):
         """
         Calculates the image positions and magnifications using Lenstronomy functions.
 
@@ -41,8 +44,7 @@ class Supernova:
                  one numpy array of length [num_images] with the macro magnification for each image
         """
         lensEquationSolver = LensEquationSolver(lens_model_class)
-        x_image, y_image = lensEquationSolver.findBrightImage(self.source_x, self.source_y, kwargs_lens,
-                                                              min_distance=min_distance, search_window=search_window)
+        x_image, y_image = lensEquationSolver.findBrightImage(self.source_x, self.source_y, kwargs_lens)
 
         macro_mag = lens_model_class.magnification(x_image, y_image, kwargs=kwargs_lens)
         macro_mag = np.abs(macro_mag)
@@ -114,6 +116,45 @@ class Supernova:
 
         return sncosmo_filter
 
+    def peakphase(self, model, telescope, band, sampling=1.):
+        """Determine phase of maximum flux for the given band/wavelength.
+        This method generates the light curve in the given band/wavelength and
+        finds the highest-flux point. It then finds the parabola that
+        passes through this point and the two neighboring points, and
+        returns the position of the peak of the parabola.
+        Adapted from SNcosmo's source.peakphase
+
+        :param model: SNcosmo model for the supernova light curve
+        :param telescope: choose 'LSST' or 'ZTF'
+        :param band: bandpass, choose between 'g', 'r', 'i', 'z', 'y' for LSST and 'g', 'r', 'i' for ZTF.
+        :param sampling: sampling frequency (in days) to find the peak
+        :returns The epoch (in days) where the light curve peaks in the specific band
+        """
+
+        # Array of phases to sample at.
+        nsamples = int(ceil((model.maxtime() - model.mintime()) / sampling)) + 1
+        phases = np.linspace(model.mintime(), model.maxtime(), nsamples)
+
+        if band == 'r' and self.z_source > 1.6:
+            return np.nan
+        elif band == 'g' and self.z_source > 0.8:
+            return np.nan
+
+        sncosmo_filter = self.get_sncosmo_filter(telescope.telescope, band)
+
+        fluxes = model.bandflux(sncosmo_filter, phases)
+
+        i = np.argmax(fluxes)
+        if (i == 0) or (i == len(phases) - 1):
+            return phases[i]
+
+        x = phases[i - 1: i + 2]
+        y = fluxes[i - 1: i + 2]
+        A = np.hstack([x.reshape(3, 1) ** 2, x.reshape(3, 1), np.ones((3, 1))])
+        a, b, c = np.linalg.solve(A, y)
+
+        return -b / (2 * a)
+
     def flux_ratio(self, model, macro_mag, micro_peak, telescope, band, add_microlensing):
         """
         Calculate the flux ratio between the brightest and faintest image.
@@ -144,7 +185,9 @@ class Supernova:
         flux_ratio = flux[1] / flux[0]
         return flux_ratio
 
-    def check_detectability_peak(self, telescope, model, macro_mag, micro_peak, add_microlensing):
+    def check_detectability_peak(self, telescope, model, macro_mag, td_images, add_microlensing, microlensing, micro_contributions,
+                                 detection_threshold=0.2, lower_lim_mag=False):
+
         """
         Check whether the lensed SN peak brightness can be detected by the telescope at peak brightness.
         If it is detectable in any filter, return True.
@@ -154,6 +197,9 @@ class Supernova:
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
         :param micro_peak: array of length [num_images] containing the microlensing contributions at peak
         :param add_microlensing: bool. if False: no microlensing. if True: also add microlensing to the peak
+        :param detection_threshold: magnitude difference from limiting magnitude required for a detection
+                (Following the definition from Wojtak et al. 2019, detection_threshold = 0.2 mag)
+        :param lower_lim_mag: if True: scan 2 magnitudes fainter than the limiting magnitude
         :return: bool. True: detectable in at least 1 filter. False: not detectable in any filter.
         """
 
@@ -164,33 +210,43 @@ class Supernova:
             elif band == 'g' and self.z_source > 0.8:
                 continue
 
+            if add_microlensing:
+                micro_day = np.array(microlensing.micro_snapshot(micro_contributions, td_images, 0, band, peak=True))
+            else:
+                micro_day = np.nan
+
             num_images = len(macro_mag)
 
             if num_images == 2:
                 # Check if the flux ratio is between 0.1 and 10
-                flux_ratio = self.flux_ratio(model, macro_mag, micro_peak, telescope, band, add_microlensing)
+                flux_ratio = self.flux_ratio(model, macro_mag, micro_day, telescope, band, add_microlensing)
                 if flux_ratio < 0.1 or flux_ratio > 10:
                     continue
 
             sncosmo_filter = self.get_sncosmo_filter(telescope.telescope, band)
 
-            peak_brightness = model.bandmag(sncosmo_filter, time=0, magsys='ab')
+            peak_phase = self.peakphase(model, telescope, band)
+            peak_brightness = model.bandmag(sncosmo_filter, time=peak_phase, magsys='ab')
             peak_brightness -= 2.5 * np.log10(macro_mag)
 
             if add_microlensing:
-                peak_brightness += micro_peak
+                peak_brightness += micro_day
 
-            limiting_magnitude = telescope.single_band_properties(band)[1]
+            limiting_magnitude = telescope.single_band_properties(band)[4]
+
+            if lower_lim_mag:
+                limiting_magnitude += 2
 
             if num_images == 2:
-                if len(peak_brightness[peak_brightness < limiting_magnitude]) == 2:
+                if len(peak_brightness[peak_brightness < (limiting_magnitude - detection_threshold)]) == 2:
                     return True
+
             elif num_images == 4:
-                if len(peak_brightness[peak_brightness < limiting_magnitude]) >= 3:
+                if len(peak_brightness[peak_brightness < (limiting_magnitude - detection_threshold)]) >= 3:
                     return True
         return False
 
-    def check_detectability(self, telescope, model, macro_mag, brightness_obs, limiting_mags, obs_filters, micro_peak, add_microlensing):
+    def check_detectability(self, telescope, model, macro_mag, brightness_obs, obs_snr, limiting_mags, obs_filters, micro_peak, add_microlensing):
         """
         Check whether the lensed SN peak brightness and flux ratio can be detected by the telescope.
         If it is detectable in any filter, return True.
@@ -199,6 +255,7 @@ class Supernova:
         :param model: SNcosmo model for the supernova light curve
         :param macro_mag: array of length [num_images] containing the macro magnification of each image
         :param brightness_obs: array of length [num_observations, num_images] containing the brightness of each observation
+        :param obs_snr: array of shape [N_observations, N_images] containing the S/N ratio for each image
         :param limiting_mags: array of length [num_observations] containing the limiting magnitudes (5 sigma depths)
         :param obs_filters: array of length [num_observations] containing the filter used for each observation
         :param micro_peak: array of length [num_images] containing the microlensing contributions at peak
@@ -217,11 +274,34 @@ class Supernova:
 
             if num_images == 2:
                 # Check if the flux ratio is between 0.1 and 10
-                # Note: this only checks the flux ratio at peak, not for every image!
+                # Note: this only checks the flux ratio at peak, not for every observation!
                 flux_ratio = self.flux_ratio(model, macro_mag, micro_peak, telescope, band, add_microlensing)
                 if flux_ratio < 0.1 or flux_ratio > 10:
                     continue
 
+            # Check if S/N ratio > 5
+
+            mask = np.where(obs_filters == band)[0]
+            if len(obs_snr[mask]) == 0:
+                continue
+
+            try:
+                detections = np.nanmax(obs_snr[mask], axis=0)
+                detections_index = np.nanargmax(obs_snr[mask], axis=0)
+            except:
+                # print("ERROR recreated!")
+                # print("obs_snr: ", obs_snr)
+                return False
+
+            if num_images == 2:
+                if (detections > 5).sum() == 2:
+                        return True
+
+            elif num_images == 4:
+                if (detections > 5).sum() > 2:
+                        return True
+
+        """
             # Check if the brightest image is brighter than the limiting magnitude
             indices = np.where(np.array(obs_filters) == band)[0]
             if len(indices) == 0:
@@ -247,6 +327,8 @@ class Supernova:
                     count += 1
                 if count >= 3:
                     return True
+                    
+        """
         return False
 
     def brightest_obs_bands(self, telescope, macro_mag, brightness_obs, obs_filters):
@@ -323,6 +405,36 @@ class Supernova:
         model.set(x0=x0)
         return model, x1, c, MW_dust, M_observed
 
+    def get_m_lens(self, telescope):
+        """
+        Calculates the apparent magnitude of a vanilla type Ia SN at the lens redshift (in order to check mag method).
+        :param telescope: class of telescope ('LSST' or 'ZTF')
+        :return: array of len N_bands containing the apparent magnitude of a type Ia at the lens redshift for each band
+        """
+
+        model_vanilla = sncosmo.Model(source='salt3')
+        model_vanilla.set(z=self.z_lens, t0=0, x1=0, c=0)
+        model_vanilla.set_source_peakabsmag(-19.4, 'bessellb', 'ab', cosmo=self.cosmo)
+
+        m_lens = {}
+
+        for band in telescope.bandpasses:
+
+            if band == 'r' and self.z_source > 1.6:
+                m_lens[band] = np.nan
+                continue
+            elif band == 'g' and self.z_source > 0.8:
+                m_lens[band] = np.nan
+                continue
+
+            sncosmo_filter = self.get_sncosmo_filter(telescope.telescope, band)
+            peak_phase = self.peakphase(model_vanilla, telescope, band)
+
+            m_lens_band = model_vanilla.bandmag(sncosmo_filter, time=peak_phase, magsys='ab')
+            m_lens[band] = m_lens_band
+
+        return m_lens
+
     def get_app_magnitude(self, model, day, macro_mag, td_images, micro_day, telescope_class, band, lim_mag, add_microlensing):
         """
         Calculate the apparent magnitude + error for each supernova image at a certain time stamp.
@@ -365,11 +477,11 @@ class Supernova:
         # Perturb the flux according to the flux error (from the sky signal)
         flux_perturbation = np.random.normal(loc=0, scale=abs(flux_error))
 
-        new_flux_ps = flux_ps + flux_perturbation
+        new_flux_ps = flux_ps + flux_perturbation  # Remove!!!
         new_flux_ps[new_flux_ps < 0.0] = 0.0
         new_flux_ps[flux_ps <= flux_error] = 0.0
 
-        new_flux_micro = flux_micro + flux_perturbation
+        new_flux_micro = flux_micro + flux_perturbation  # Remove!!
         new_flux_micro[new_flux_micro < 0.0] = 0.0
         new_flux_micro[flux_micro <= flux_error] = 0.0
 
@@ -392,7 +504,7 @@ class Supernova:
         app_mag_micro[app_mag_micro > 30] = np.inf
         app_mag_micro_error[app_mag_micro > 30] = np.nan
 
-        return app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, snr_micro
+        return app_mag_model, app_mag_obs, app_mag_error, snr, app_mag_micro, app_mag_micro_error, snr_micro, app_mag_ps
 
     def get_mags_unresolved(self, obs_mag, telescope_class, obs_filters, obs_lim_mag, filler=np.nan):
         """

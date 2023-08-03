@@ -117,7 +117,116 @@ class Visualisation:
 
         plt.show()
 
-    def plot_light_curves(self, model, day_range, obs_mag_unresolved, mag_unresolved_error):
+    def plot_light_curves(self, model, day_range, obs_mag_unresolved, mag_unresolved_error, add_microlensing,
+                                                microlensing, micro_contributions):
+        """
+        Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
+        observations in the different bands.
+
+        :param model: SNcosmo model for the supernova light curve
+        :param day_range: array with a range of time steps to cover the lensed supernova evolution
+        :return: plots the individual light curves, combined light curve, and observation time stamps
+        """
+        fig2, ax2 = plt.subplots(1, 1, figsize=(8, 5))
+        fig2.gca().invert_yaxis()
+        ax2.set_xlabel("Day", fontsize=18)
+        ax2.set_ylabel("Apparent magnitude", fontsize=18)
+        # ax2.set_title(r"Light curve", fontsize=25)
+
+        colours = {'lsstg': '#377eb8', 'lsstr': '#4daf4a',
+                   'lssti': '#e3c530', 'lsstz': '#ff7f00', 'lssty': '#e41a1c'}
+
+        markers = {'lsstg': '>', 'lsstr': '<',
+                   'lssti': '^', 'lsstz': 'o', 'lssty': 's'}
+
+        def total_mag(model, day_range, day, band, td_images, macro_mag):
+            """
+            This function returns the combined magnitude of all SN images at a certain point in time (day)
+            """
+
+            fluxes = []
+            for im in range(len(td_images)):
+                flux = model.bandflux(band, time=day_range - td_images[im])
+                flux *= macro_mag[im]
+                fluxes.append(flux)
+
+            zeropoint = sncosmo.ABMagSystem(name='ab').zpbandflux(band)
+            total_flux = np.sum(fluxes, axis=0)
+            total_mag = -2.5 * np.log10(total_flux / zeropoint)
+            total_lightcurve = interp1d(day_range, total_mag, bounds_error=False)
+
+            return total_lightcurve(day)
+
+        max_obs, min_obs = 24, 24
+        max_lc, min_lc = [], []
+
+        # Calculate microlensing contributions
+        if add_microlensing:
+            micro_day_range = []
+            for d in day_range:
+                micro_day_range.append(
+                    np.array(microlensing.micro_snapshot(micro_contributions, self.td_images, d, 'i')))
+            micro_day_range = np.array(micro_day_range)
+        else:
+            micro_day_range = np.zeros((len(day_range), len(self.td_images)))
+
+        lc_alpha = [0.6, 0.4]
+
+        for im in range(len(self.td_images)):
+            mags = model.bandmag('lssti', time=day_range - self.td_images[im], magsys='ab')
+            mags -= 2.5 * np.log10(self.macro_mag[im])
+            ax2.plot(day_range, mags, '--', color='black', alpha=lc_alpha[im], lw=1.2)
+
+            if add_microlensing:
+                ax2.plot(day_range, mags + micro_day_range[:, im], color='black', alpha=lc_alpha[im], lw=1.2)
+                # max_lc += max(0, np.max(micro_day_range))
+
+            max_lc.append(np.max(mags[np.isfinite(mags)]))
+            min_lc.append(np.min(mags[np.isfinite(mags)]))
+
+        lim_max = max([max(max_lc) + 1, max_obs])
+        lim_min = min([min(min_lc) - 2, min_obs])
+
+        ax2.xaxis.set_tick_params(labelsize=17)
+        ax2.yaxis.set_tick_params(labelsize=17)
+
+        for obs in range(len(self.obs_days)):
+            day = self.obs_days[obs]
+            band = 'lsst' + self.obs_days_filters[obs]
+
+            # ax2.plot(day, total_mag(model, day_range, day, band, self.td_images, self.macro_mag),
+            #          color=colours[band], marker=markers[band], ms=2, label=band)
+
+            ax2.plot(day, obs_mag_unresolved[obs], color=colours[band], marker=markers[band], ms=8, label=band)
+            ax2.vlines(day, obs_mag_unresolved[obs] - mag_unresolved_error[obs], obs_mag_unresolved[obs] + mag_unresolved_error[obs],
+                             color=colours[band])
+
+
+        legend_handles = [Line2D([0], [0], marker=markers['lsstg'], color=colours['lsstg'], label=r'lsst $g$', ms=10, lw=0),
+                          Line2D([0], [0], marker=markers['lsstr'], color=colours['lsstr'], label=r'lsst $r$', ms=10, lw=0),
+                          Line2D([0], [0], marker=markers['lssti'], color=colours['lssti'], label=r'lsst $i$', ms=10, lw=0),
+                          Line2D([0], [0], marker=markers['lsstz'], color=colours['lsstz'], label=r'lsst $z$', ms=10, lw=0),
+                          Line2D([0], [0], marker=markers['lssty'], color=colours['lssty'], label=r'lsst $y$', ms=10, lw=0)]
+
+        legend1 = plt.legend(handles=legend_handles, loc='lower right', ncol=2, handletextpad=.3, borderaxespad=.3,
+                    labelspacing=.3, borderpad=.3, columnspacing=.4, fontsize=18)
+
+        legend_handles2 = [Line2D([0], [0], color='black', lw=1.5, alpha=0.5, label=' ')]
+
+        #legend2 = plt.legend(handles=legend_handles2, loc=(0.75, 0.01), handletextpad=.3, borderaxespad=.3,
+        #           labelspacing=.3, borderpad=.3, columnspacing=.4, fontsize=18, frameon=False)
+
+        ax2.add_artist(legend1)
+        #ax2.add_artist(legend2)
+        ax2.set_ylim(lim_max, lim_min)
+
+        #ax2.text(0.83, 0.057, r'microlensed lc ($i$)', transform=ax2.transAxes, fontsize=17, zorder=100)
+
+        plt.savefig("../Results/Figures/Results_0506/Simulated_lightcurves.png", dpi=200, bbox_inches='tight')
+
+        plt.show()
+
+    def plot_light_curves2(self, model, day_range, obs_mag_unresolved, mag_unresolved_error):
         """
         Plots the apparent magnitudes of the individual light curves of the lensed supernova images as seen from the
         observations in the different bands.

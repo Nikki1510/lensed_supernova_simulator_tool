@@ -548,12 +548,33 @@ if __name__ == '__main__':
     kappa, gamma, s = 3.620489580770965832e-01, 3.416429828804125046e-01, 4.430360463808165061e-01
     kappa, gamma, s = 0.362000, 0.280000, 0.910
     # kappa, gamma, s = 9.564962670984238358e-01, 9.517424234642006819e-01, 7.902578031429109418e-01
-    source_redshift = 0.1
+    source_redshift = 0.8
 
     database_name = '../data/microlensing/databases/microlensing_database_z_%i_%s.db' % (int(np.floor(source_redshift)),
                     np.char.zfill(str(int(np.around(100 * (source_redshift - int(np.floor(source_redshift)))))),2))
 
     file_name = "kappa:%.3f_gamma:%.3f_s:%.3f_zsrc:%.2f" % (kappa, gamma, s, source_redshift)
+
+    # ---------
+
+    M = Microlensing(1, 1, 1, 1, 1, 1, 1, 1, 1)
+    kgs = [0.362000, 0.280000, 0.910]
+
+    peak_contr = []
+
+    for n in range(100):
+        SN_model = np.random.choice(["m", "n", "w", "s"])
+        curves = M.micro_lightcurve(kgs, source_redshift=0.8, SN_model=SN_model)
+        peak_contr.append(curves['micro_i'][20] - curves['macro_i'][20])
+
+
+
+    import sys; sys.exit()
+
+
+
+
+
 
     conn = sqlite3.connect(database_name)
     c = conn.cursor()

@@ -65,27 +65,32 @@ class Telescope:
             LSST_g = {'magnitude_zero_point': 28.30,
                       'average_seeing': 0.77,
                       'sky_brightness': 22.26,
-                      'limiting_magnitude': 25.0}
+                      'limiting_magnitude': 25.0,
+                      'limiting_magnitude_wojtak': 24.5}
 
             LSST_r = {'magnitude_zero_point': 28.13,
                       'average_seeing': 0.73,
                       'sky_brightness': 21.2,
-                      'limiting_magnitude': 24.7}
+                      'limiting_magnitude': 24.7,
+                      'limiting_magnitude_wojtak': 24.2}
 
             LSST_i = {'magnitude_zero_point': 27.79,
                       'average_seeing': 0.71,
                       'sky_brightness': 20.48,
-                      'limiting_magnitude': 24.0}
+                      'limiting_magnitude': 24.0,
+                      'limiting_magnitude_wojtak': 23.6}
 
             LSST_z = {'magnitude_zero_point': 27.40,
                       'average_seeing': 0.69,
                       'sky_brightness': 19.6,
-                      'limiting_magnitude': 23.3}
+                      'limiting_magnitude': 23.3,
+                      'limiting_magnitude_wojtak': 22.8}
 
             LSST_y = {'magnitude_zero_point': 26.58,
                       'average_seeing': 0.68,
                       'sky_brightness': 18.61,
-                      'limiting_magnitude': 22.1}
+                      'limiting_magnitude': 22.1,
+                      'limiting_magnitude_wojtak': 22.0}
 
             if band == 'g':
                 obs_dict = LSST_g
@@ -105,6 +110,7 @@ class Telescope:
         zero_point = obs_dict['magnitude_zero_point']
         average_seeing = obs_dict['average_seeing']
         limiting_magnitude = obs_dict['limiting_magnitude']
+        limiting_magnitude_wojtak = obs_dict['limiting_magnitude_wojtak']
         sky_brightness = obs_dict['sky_brightness']
 
         # Instrument properties
@@ -121,7 +127,7 @@ class Telescope:
         # Read = 10 / self.exp_time / (self.num_exposures ** 0.5)
         sigma_bkg = obs_api.background_noise
 
-        return obs_api, limiting_magnitude, sigma_bkg, zero_point
+        return obs_api, limiting_magnitude, sigma_bkg, zero_point, limiting_magnitude_wojtak
 
     def grid(self, sigma_bkg):
         """
@@ -517,7 +523,7 @@ class Telescope:
         :return: 2D array of (NumPix * DeltaPix)^2 pixels containing the image
         """
 
-        _, limiting_mag, sigma_bkg, _ = self.single_band_properties(band)
+        _, limiting_mag, sigma_bkg, _, _ = self.single_band_properties(band)
         data_class, x_grid1d, y_grid1d, min_coordinate, max_coordinate = self.grid(sigma_bkg)
 
         # seeing_params = self.get_seeing_params(band)

@@ -100,7 +100,7 @@ def create_dataframe(batch_size):
     :param batch_size: number of rows (corresponding to lens systems) the data frame should contain
     :return: an empty pandas data frame with [batch_size] rows and 23 columns
     """
-    df = pd.DataFrame(np.zeros((batch_size, 55)),
+    df = pd.DataFrame(np.zeros((batch_size, 57)),
          columns=['time_series', 'z_source', 'z_lens', 'H0', 'theta_E', 'obs_peak', 'obs_times', 'obs_bands', 'model_mag',
                   'obs_mag', 'obs_mag_error', 'obs_snr', 'obs_mag_unresolved', 'mag_unresolved_error', 'snr_unresolved',
                   'macro_mag', 'source_x', 'source_y', 'time_delay', 'time_delay_distance', 'image_x', 'image_y',
@@ -109,7 +109,7 @@ def create_dataframe(batch_size):
                   'mult_method_micro', 'mag_method_peak', 'mag_method', 'mag_method_micro',  'coords',
                   'obs_skybrightness', 'obs_psf', 'obs_lim_mag', 'obs_N_coadds', 'survey', 'rolling', 'obs_mag_micro',
                   'mag_micro_error', 'obs_snr_micro', 'mag_unresolved_micro', 'mag_unresolved_micro_error',
-                  'snr_unresolved_micro'])
+                  'snr_unresolved_micro', 'peak_magnitudes', 'peak_magnitudes_micro'])
 
     df['time_series'] = df['time_series'].astype('object')
     df['time_delay'] = df['time_delay'].astype('object')
@@ -135,13 +135,14 @@ def create_dataframe(batch_size):
     df['obs_psf'] = df['obs_psf'].astype('object')
     df['obs_lim_mag'] = df['obs_lim_mag'].astype('object')
     df['obs_N_coadds'] = df['obs_N_coadds'].astype('object')
-
     df['obs_mag_micro'] = df['obs_mag_micro'].astype('object')
     df['mag_micro_error'] = df['mag_micro_error'].astype('object')
     df['obs_snr_micro'] = df['obs_snr_micro'].astype('object')
     df['mag_unresolved_micro'] = df['mag_unresolved_micro'].astype('object')
     df['mag_unresolved_micro_error'] = df['mag_unresolved_micro_error'].astype('object')
     df['snr_unresolved_micro'] = df['snr_unresolved_micro'].astype('object')
+    df['peak_magnitudes'] = df['peak_magnitudes'].astype('object')
+    df['peak_magnitudes_micro'] = df['peak_magnitudes_micro'].astype('object')
 
     return df
 
@@ -153,7 +154,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
                 stretch, colour, Mb, obs_start, obs_end, mult_method_peak, mult_method, mult_method_micro,
                 mag_method_peak, mag_method, mag_method_micro, coords, obs_skybrightness, obs_psf, obs_lim_mag,
                 obs_N_coadds, survey, rolling, obs_mag_micro, mag_micro_error, obs_snr_micro, mag_unresolved_micro,
-                mag_unresolved_micro_error, snr_unresolved_micro):
+                mag_unresolved_micro_error, snr_unresolved_micro, peak_magnitudes, peak_magnitudes_micro):
     """
     Write the properties of the current lens system into a row of the data frame.
 
@@ -195,7 +196,7 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param micro_kappa: array of length [num_images] containing the convergence/kappa for each image
     :param micro_gamma: array of length [num_images] containing the shear for each image
     :param micro_s: array of length [num_images] containing smooth matter fraction for each image
-    :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak
+    :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak (i-band)
     :param stretch: stretch parameter associated with the supernova light curve (float)
     :param colour: colour parameter associated with the supernova light curve (float)
     :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
@@ -225,6 +226,8 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     :param mag_unresolved_micro_error: array of len N_observations, containing the magnitude errors for the unresolved
            microlensed light curves
     :param snr_unresolved_micro: array of len N_observations, containing the S/N of the unresolved microlensed curves
+    :param peak_magnitudes: array containing the unresolved peak apparent magnitudes in each band
+    :param peak_magnitudes_micro: array containing the unresolved peak apparent magnitudes in each band (with microlensing)
 
     :return: pandas data frame of size [batch_size x 18] containing the properties of the saved lens systems,
              including the newest one
@@ -284,6 +287,8 @@ def write_to_df(df, index, batch_size, time_series, z_source, z_lens, H_0, theta
     df['mag_unresolved_micro'][index % batch_size] = mag_unresolved_micro
     df['mag_unresolved_micro_error'][index % batch_size] = mag_unresolved_micro_error
     df['snr_unresolved_micro'][index % batch_size] = snr_unresolved_micro
+    df['peak_magnitudes'][index % batch_size] = peak_magnitudes
+    df['peak_magnitudes_micro'][index % batch_size] = peak_magnitudes_micro
     return df
 
 

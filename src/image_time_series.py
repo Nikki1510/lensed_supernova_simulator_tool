@@ -217,25 +217,15 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
         mult_method_peak = simulations.check_mult_method_peak(supernova, sep, lsst, model, macro_mag, td_images, False, np.nan, np.nan)
         mult_method_peak_micro = simulations.check_mult_method_peak(supernova, sep, lsst, model, macro_mag, td_images, add_microlensing, microlensing, micro_contributions)
 
-        #print("mult_method_peak = ", mult_method_peak)
-        #print("mult_method_peak_micro = ", mult_method_peak_micro)
-
         # Check magnification method
         mag_gap = -0.7
         m_lens = supernova.get_m_lens(lsst)
-        #print("m_lens = ", m_lens)
 
         mag_method_peak, peak_magnitudes = simulations.check_mag_method_peak(td_images, lsst, supernova, model, macro_mag,
                                                                         z_source, m_lens, mag_gap, False, np.nan, np.nan)
         mag_method_peak_micro, peak_magnitudes_micro = simulations.check_mag_method_peak(td_images, lsst, supernova, model,
                                                                                     macro_mag, z_source, m_lens,
                                                                                     mag_gap, add_microlensing, microlensing, micro_contributions)
-
-        # if mult_method_peak == False and mult_method_peak_micro == True:
-        #    print("Mult_method_peak = False but mult_method_peak_micro = True!")
-
-        # if mag_method_peak == False and mag_method_peak_micro == True:
-        #    print("Mag_method_peak = False but mag_method_peak_micro = True!")
 
         if not any([mult_method_peak, mag_method_peak, mult_method_peak_micro, mag_method_peak_micro]):
             continue
@@ -310,13 +300,6 @@ def simulate_time_series_images(num_samples, batch_size, batch, num_images, add_
             print("Observations allow for detection with magnification method?     ", mag_method)
             print("Microlensing allow for detection with image multiplicity method?", mult_method_micro)
             print("Microlensing allow for detection with magnification method?     ", mag_method_micro)
-
-        # Failed systems
-        # if cadence_try == N_tries - 1:
-        #     continue
-
-        # The observations are detectable! Save the number of cadence tries it required
-        # print("Detectable! Number of cadence tries: ", cadence_try + 1)
 
         timer.end('detection_criteria_2')
         timer.initiate('finalise')
@@ -442,26 +425,6 @@ def main():
     df, timings = simulate_time_series_images(num_samples, batch_size, batch, num_images, add_microlensing,
                                               obs_lower_limit, obs_upper_limit, fixed_H0, lsst, Show, Save, path)
 
-
-    """
-    telescope = 'LSST'
-    bandpasses = ['r', 'i', 'z', 'y']
-    num_samples = 1           # Total number of lens systems to be generated
-    batch_size = 1            # Number of lens systems that is saved together in a batch
-    batch = 1                 # Starting number of the batch
-    num_images = 2            # Choose between 2 (for doubles) and 4 (for quads)
-    obs_upper_limit = 40      # Upper limit of number of observations
-    obs_lower_limit = 5       # Lower limit of number of observations
-    fixed_H0 = True           # Bool, if False: vary H0. if True: fix H0 to 70 km/s/Mpc (for the evaluation set)
-    add_microlensing = False  # Bool, if False: Only macro magnification. if True: Add effects of microlensing
-
-    Show = True               # Bool, if True: Show figures and print information about the lens systems
-    Save = False              # Bool, if True: Save image time-series
-    path = "../processed_data/Cadence_microlensing_evaluationset_doubles2/"  # Path to folder in which to save the results
-
-    lsst = Telescope(telescope, bandpasses)
-    z_source_list_, z_lens_list_, theta_E_list_ = lsst.load_z_theta(theta_min=0.1)
-    """
 
 if __name__ == '__main__':
     main()

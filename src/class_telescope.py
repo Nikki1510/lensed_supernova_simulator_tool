@@ -62,31 +62,31 @@ class Telescope:
 
         if self.telescope == 'LSST':
 
-            LSST_g = {'magnitude_zero_point': 28.30,
+            LSST_g = {'magnitude_zero_point': 28.38,
                       'average_seeing': 0.77,
                       'sky_brightness': 22.26,
                       'limiting_magnitude': 25.0,
                       'limiting_magnitude_wojtak': 24.5}
 
-            LSST_r = {'magnitude_zero_point': 28.13,
+            LSST_r = {'magnitude_zero_point': 28.16,
                       'average_seeing': 0.73,
                       'sky_brightness': 21.2,
                       'limiting_magnitude': 24.7,
                       'limiting_magnitude_wojtak': 24.2}
 
-            LSST_i = {'magnitude_zero_point': 27.79,
+            LSST_i = {'magnitude_zero_point': 27.85,
                       'average_seeing': 0.71,
                       'sky_brightness': 20.48,
                       'limiting_magnitude': 24.0,
                       'limiting_magnitude_wojtak': 23.6}
 
-            LSST_z = {'magnitude_zero_point': 27.40,
+            LSST_z = {'magnitude_zero_point': 27.46,
                       'average_seeing': 0.69,
                       'sky_brightness': 19.6,
                       'limiting_magnitude': 23.3,
                       'limiting_magnitude_wojtak': 22.8}
 
-            LSST_y = {'magnitude_zero_point': 26.58,
+            LSST_y = {'magnitude_zero_point': 26.68,
                       'average_seeing': 0.68,
                       'sky_brightness': 18.61,
                       'limiting_magnitude': 22.1,

@@ -289,8 +289,6 @@ class Supernova:
                 detections = np.nanmax(obs_snr[mask], axis=0)
                 detections_index = np.nanargmax(obs_snr[mask], axis=0)
             except:
-                # print("ERROR recreated!")
-                # print("obs_snr: ", obs_snr)
                 return False
 
             if num_images == 2:
@@ -301,34 +299,6 @@ class Supernova:
                 if (detections > 5).sum() > 2:
                         return True
 
-        """
-            # Check if the brightest image is brighter than the limiting magnitude
-            indices = np.where(np.array(obs_filters) == band)[0]
-            if len(indices) == 0:
-                continue
-            max_brightness = np.min(brightness_obs[indices], axis=0)
-            min_indices = np.argmin(brightness_obs[indices], axis=0)
-
-            # limiting_magnitude = telescope.single_band_properties(band)[1]
-
-            if num_images == 2:
-                if max_brightness[0] < limiting_mags[indices][min_indices[0]]:
-                    if max_brightness[1] < limiting_mags[indices][min_indices[1]]:
-                        return True
-            elif num_images == 4:
-                count = 0
-                if max_brightness[0] < limiting_mags[indices][min_indices[0]]:
-                    count += 1
-                if max_brightness[1] < limiting_mags[indices][min_indices[1]]:
-                    count += 1
-                if max_brightness[2] < limiting_mags[indices][min_indices[2]]:
-                    count += 1
-                if max_brightness[3] < limiting_mags[indices][min_indices[3]]:
-                    count += 1
-                if count >= 3:
-                    return True
-                    
-        """
         return False
 
     def brightest_obs_bands(self, telescope, macro_mag, brightness_obs, obs_filters):

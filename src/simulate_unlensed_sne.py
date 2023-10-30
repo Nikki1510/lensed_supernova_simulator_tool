@@ -74,7 +74,7 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
         else:
             H_0 = np.random.uniform(20.0, 100.0)
 
-        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.315)
+        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.308)
 
         timer.end('general_properties')
         timer.initiate('lens_SN_properties')
@@ -221,13 +221,6 @@ def simulate_unlensed_sne(num_samples, batch_size, batch, obs_lower_limit, obs_u
             obs_mag = obs_mag[:len(obs_days)]
             model_mag = model_mag[:len(obs_days)]
 
-            # Final cuts
-
-            # Determine whether the lensed SN is detectable, based on its brightness and flux ratio
-            # if not supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
-            #                                      add_microlensing):
-            #     continue
-
             timer.end('cadence')
 
             break
@@ -331,7 +324,7 @@ def main():
     Save = False  # Bool, if True: Save image time-series
     path = "../processed_data/Baseline_v_2_0_/"  # Path to folder in which to save the results
 
-    df, timings = simulate_time_series_images(num_samples, batch_size, batch, num_images, add_microlensing,
+    df, timings = simulate_unlensed_sne(num_samples, batch_size, batch, num_images, add_microlensing,
                                               obs_lower_limit, obs_upper_limit, fixed_H0, lsst, Show, Save, path)
 
 

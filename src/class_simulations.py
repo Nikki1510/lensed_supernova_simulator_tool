@@ -42,11 +42,11 @@ class Simulations:
                                                         sample, sample_index)
 
         if fixed_H0:
-            H_0 = 67.8  # Planck 2018 cosmology
+            H_0 = 67.8  # Planck 2015 cosmology
         else:
             H_0 = np.random.uniform(20.0, 100.0)
 
-        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.315)
+        cosmo = FlatLambdaCDM(H0=H_0, Om0=0.308)
         time_delay_distance = get_time_delay_distance(z_source, z_lens, cosmo)
 
         if num_images == 2:
@@ -143,15 +143,6 @@ class Simulations:
                 if app_mag_unresolved < lim_mag_band:
                     mag_method_peak = True
 
-            # if app_mag_unresolved < M + cosmo.distmod(z_lens).value + mag_gap:
-            #    mag_method_peak = True
-
-            #print("band: ", band)
-            #print("app_mag_min: ", app_mag_unresolved)
-            #print("comparison: ", m_lens[band] + mag_gap)
-            #print("detected? ", mag_method_peak)
-            #print(" ")
-
             peak_magnitudes.append(app_mag_unresolved)
 
         return mag_method_peak, np.array(peak_magnitudes)
@@ -218,13 +209,6 @@ class Simulations:
             app_mag_min_index = np.argmin(app_mag_unresolved[mask])
             app_mag_min = app_mag_unresolved[mask][app_mag_min_index]
             snr_min = snr_unresolved[mask][app_mag_min_index]
-
-            #print("band: ", band)
-            #print("app_mag_min: ", app_mag_min)
-            #print("comparison: ", m_lens[band] + mag_gap)
-            #print("detected? ", app_mag_min < m_lens[band] + mag_gap)
-            #print("snr: ", snr_min)
-            #print(" ")
 
             # Check if it passes the magnification method condition
             if app_mag_min < m_lens[band] + mag_gap:
@@ -294,8 +278,7 @@ class Simulations:
             # Cut the observations to start at offset and end after year 3
             opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness = \
                 lsst.select_observation_time_period(opsim_times, opsim_filters, opsim_psf, opsim_lim_mag,
-                                                    opsim_sky_brightness, mjd_low=offset, mjd_high=61325)  # !!! Remove: change back: mjd_low=offset, mjd_high=61325
-            # Testing: mjd_low=60220, mjd_high=63325
+                                                    opsim_sky_brightness, mjd_low=offset, mjd_high=61325)
 
             if len(opsim_times) == 0:
                 continue
@@ -305,14 +288,9 @@ class Simulations:
             # Shift the observations back to the SN time frame
             opsim_times -= (obs_start - start_sn)
 
-            # Testing: comment out
             # Perform nightly coadds
             opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness, N_coadds = \
                 lsst.coadds(opsim_times, opsim_filters, opsim_psf, opsim_lim_mag, opsim_sky_brightness)
-
-            # Testing: uncomment
-            #if len(opsim_filters) < 300:  # !!! Remove !!!
-            #    continue
 
             # Save all important properties
             time_series = []
@@ -335,16 +313,6 @@ class Simulations:
             obs_snr_micro = []
             app_mag_i_micro = []
 
-            # !!! Remove !!! Testing:
-            #opsim_times = np.linspace(opsim_times[0], opsim_times[0]+100, 400)
-            #opsim_filters = opsim_filters[:len(opsim_times)]  # ['g', 'r', 'i', 'z', 'y'] * 80  # ['i' for i in range(len(opsim_times))]
-
-            #opsim_lim_mag = opsim_lim_mag[:len(opsim_times)]
-
-            #opsim_sky_brightness = [26 for i in range(len(opsim_times))]
-            #opsim_psf = [24 for i in range(len(opsim_times))]
-            #N_coadds = [24 for i in range(len(opsim_times))]
-            # !!! Remove !!!
 
             for observation in range(obs_upper_limit):
 
@@ -444,13 +412,6 @@ class Simulations:
 
             obs_mag = obs_mag[:len(obs_days)]
             model_mag = model_mag[:len(obs_days)]
-
-            # Final cuts
-
-            # Determine whether the lensed SN is detectable, based on its brightness and flux ratio
-            # if not supernova.check_detectability(lsst, model, macro_mag, brightness_im, obs_days_filters, micro_peak,
-            #                                      add_microlensing):
-            #     continue
 
             # Discard systems with fewer than obs_lower_limit images
             # L = len(time_series)

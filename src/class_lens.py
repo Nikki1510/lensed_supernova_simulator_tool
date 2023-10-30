@@ -154,7 +154,7 @@ class Lens:
         R = 2.46 - 2.79 * V + 0.84 * V ** 2
         R += np.random.randn() * 0.11
         H_0 = self.cosmo.H(0).value
-        r_phys = 10 ** R * H_0 / 100
+        r_phys = 10 ** R * H_0 / 100  # Mpc?
         r_rad = r_phys / (self.cosmo.angular_diameter_distance(self.z_lens).value * 10 ** 3)
         r_arcsec = r_rad * 360 / (2 * np.pi) * 3600
 

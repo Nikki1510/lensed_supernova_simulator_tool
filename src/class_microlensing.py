@@ -262,116 +262,6 @@ class Microlensing:
 
         return final_kgs
 
-    """
-
-    def query_database(self, c, kappa, gamma, s, source_redshift, data_type, bandpass, SN_model):
-
-        file_name = "kappa:%.3f_gamma:%.3f_s:%.3f_zsrc:%.2f" % (kappa, gamma, s, source_redshift)
-
-        if data_type == 'time':
-            condition = "filename = :filename AND data_type = :data_type AND bandpass = :bandpass AND SN_model = :SN_model"
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': bandpass,
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_g = c.fetchone()
-
-        else:
-
-            condition = "filename = :filename AND data_type = :data_type AND bandpass = :bandpass AND SN_model = :SN_model"
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': 'g',
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_g = c.fetchone()
-
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': 'r',
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_r = c.fetchone()
-
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': 'i',
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_i = c.fetchone()
-
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': 'z',
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_z = c.fetchone()
-
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'bandpass': 'y',
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            result_y = c.fetchone()
-
-        
-        else:
-
-            database_name = '../data/microlensing/databases/microlensing_database_z_1_30.db'
-            conn = sqlite3.connect(database_name)
-            c = conn.cursor()
-            file_name = "kappa:0.362_gamma:0.342_s:0.616_zsrc:1.30"
-
-            n1time = time.time()
-            line_id = np.random.randint(0, 5120528)
-            print("line_id: ", line_id)
-            condition = "filename = :filename AND line_id = :line_id"
-            condition_values = {'filename': file_name,
-                                'line_id': line_id}
-            n2time = time.time()
-            con_time = n2time - n1time
-            #print("con_time: ", con_time)
-
-            n1time = time.time()
-            c.execute("SELECT * FROM datapoints WHERE " + condition, condition_values)
-            n2time = time.time()
-            #print((n2time - n1time) + con_time)
-            result = c.fetchone()
-            print(result)
-
-            n1time = time.time()
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " LIMIT 1", condition_values)
-            n2time = time.time()
-            #print((n2time - n1time) + con_time)
-            result = c.fetchone()
-            print(result)
-
-            # -----------------------
-            n1time = time.time()
-            condition = "filename = :filename AND data_type = :data_type AND SN_model = :SN_model"
-            condition_values = {'filename': file_name,
-                                'data_type': data_type,
-                                'SN_model': SN_model}
-
-            c.execute("SELECT * FROM datapoints WHERE " + condition + " ORDER BY RANDOM() LIMIT 1", condition_values)
-            n2time = time.time()
-            #print(n2time - n1time)
-            # -----------------------
-
-            print(" ")
-        
-
-        return result_g
-        
-    """
-
     def query_database(self, c, kappa, gamma, s, source_redshift, conditions_all):
         """
         Select one element (row) from the microlensing lightcurves database.
@@ -458,12 +348,6 @@ class Microlensing:
         curves = self.query_database(c, kappa, gamma, s, source_redshift, tuple(conditions_all))
 
         micro_dict = self.micro_dictionary(curves)
-
-        #micro = self.query_database(c, kappa, gamma, s, source_redshift, 'micro', 'i', SN_model)[5:]
-        #macro = self.query_database(c, kappa, gamma, s, source_redshift, 'macro', 'i', SN_model)[5:]
-        #time_range = self.query_database(c, kappa, gamma, s, source_redshift, 'time', 'none', 'none')[5:]
-
-        #micro_contribution = np.array(micro) - np.array(macro)
 
         return micro_dict
 
@@ -567,14 +451,7 @@ if __name__ == '__main__':
         curves = M.micro_lightcurve(kgs, source_redshift=0.8, SN_model=SN_model)
         peak_contr.append(curves['micro_i'][20] - curves['macro_i'][20])
 
-
-
-    import sys; sys.exit()
-
-
-
-
-
+    # ---------
 
     conn = sqlite3.connect(database_name)
     c = conn.cursor()
@@ -596,91 +473,3 @@ if __name__ == '__main__':
     end = time.time()
 
     print("Duration = ", end - start, " seconds")
-
-    print("-------------")
-
-    # Open config file
-
-    configs = np.load("../data/microlensing/config_files/kappa%.3f_gamma%.3f_s%.3f_zsrc%.2f.npz" % (kappa, gamma, s, source_redshift), allow_pickle=True)
-    table = configs['table']
-    print(type(table))
-    print(np.shape(table))
-    print(table[0])
-    print(table[:,0])
-    print(table[0,0])
-
-    micro_config = str(np.random.randint(0, 9999))
-    SN_model = np.random.choice(["m", "n", "w", "s"])
-    print(micro_config, SN_model)
-
-    print(" ")
-    conditions_micro = np.where((table[:,3] == micro_config) & (table[:, 2] == SN_model))[0]
-    conditions_macro = np.where((table[:,0] == "macro") & (table[:, 2] == SN_model))[0]
-    conditions_time = np.where((table[:, 0] == "time"))[0]
-    print(conditions_micro)
-    print("Micro: ")
-    print(table[conditions_micro])
-    print("Macro:")
-    print(table[conditions_macro])
-    print("Time:")
-    print(table[conditions_time])
-    print(" ")
-
-    conditions_all = tuple(list(conditions_micro) + list(conditions_macro) + list(conditions_time))
-    print(conditions_all)
-
-    # 6552 s
-    # indices: [148432 212210 217392 229601 229608 229610]
-
-    M = Microlensing(1,1,1,1,1,1,1,1,1)
-    kgs = [0.362000, 0.280000, 0.910]
-
-    start = time.time()
-
-    SN_model = np.random.choice(["m", "n", "w", "s"])
-
-    M.micro_lightcurve(kgs, source_redshift, SN_model)
-
-    end = time.time()
-
-    print("Duration: ", end - start)
-
-
-
-    """
-    def micro_lightcurve_old(self, kgs, source_redshift):
-
-        # Directory containing the light curves
-        output_data_path = "microlensing/light_curves/"
-
-        # Light curve properties
-        kappa, gamma, s = kgs
-        lens_redshift = 0.32
-        N_sim = 10000
-
-        # Open corresponding pickle file with light curve
-        pickel_name = "k%f_g%f_s%.3f_redshift_source_%.3f_lens%.3f_Nsim_%i" % (
-        kappa, gamma, s, source_redshift, lens_redshift, N_sim)
-
-        open_pickle = "%s%s.pickle" % (output_data_path, pickel_name)
-        with open(open_pickle, 'r') as handle:
-            d_light_curves = json.load(handle, encoding='latin1')
-
-        # Get Macrolensed light curve and time steps
-        # Filter options: ["u","g","r","i","z","y","J","H"]
-        SN_model = "ww"  # Options: ["me", "n1", "ww", "su"]
-        key_macro = "macro_light_curve_%s%s" % (SN_model, self.bandpass)
-        macro_light_curve = d_light_curves[key_macro]
-        time_after_explosion = d_light_curves["time_bin_center"]
-
-        # get microlensed light curves
-        micro_config = np.random.randint(0, 10000)
-        key_micro = "micro_light_curve_%s%i%s" % (SN_model, micro_config, self.bandpass)
-        micro_light_curve = d_light_curves[key_micro]
-
-        # print("Len: ", len(d_light_curves.keys()))
-
-        microlensing_contribution = np.array(micro_light_curve) - np.array(macro_light_curve)
-
-        return microlensing_contribution, np.array(macro_light_curve), np.array(time_after_explosion)
-    """

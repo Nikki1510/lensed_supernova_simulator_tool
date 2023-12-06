@@ -222,7 +222,7 @@ class Visualisation:
 
         #ax2.text(0.83, 0.057, r'microlensed lc ($i$)', transform=ax2.transAxes, fontsize=17, zorder=100)
 
-        plt.savefig("../Results/Figures/Results_0506/Simulated_lightcurves.png", dpi=200, bbox_inches='tight')
+        #plt.savefig("../Results/Figures/Simulated_lightcurves.png", dpi=200, bbox_inches='tight')
 
         plt.show()
 

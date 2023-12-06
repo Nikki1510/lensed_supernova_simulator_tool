@@ -1,0 +1,68 @@
+
+--------- Simulation output documentation --------- 
+
+    :param z_source: redshift of the supernova (float)
+    :param z_lens: redshift of the lens galaxy (float)
+    :param H_0: value of the Hubble constant used for the background cosmology in this current lens configuration (float)
+    :param theta_E: einstein radius of the lens galaxy (float)
+    :param obs_peak: array of length [num_filters, num_images] containing the brightest apparent magnitudes of each of
+           the supernova images for each filter/bandpass
+    :param obs_times: array of length N_observations containing the time stamps of each observation
+    :param obs_bands: array of length N_observations containing the bandpasses for each observation
+    :param model_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image as predicted by the model (so NOT perterbed by weather)
+    :param obs_mag: array of shape [N_observations, N_images] that contains the apparent magnitudes for each
+            observation and each image (perterbed by weather). Use in combination with obs_times and obs_bands.
+    :param obs_mag_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+    :param obs_snr: array of shape [N_observations, N_images] containing the S/N ratio for each image
+    :param obs_mag_unresolved: array of len N_observations, containing the apparent magnitude for all SN images together,
+            corresponding to the case of unresolved images
+    :param mag_unresolved_error: array of len N_observations, containing the magnitude errors for the unresolved magnitudes
+    :param snr_unresolved: array of len N_observations, containing the S/N ratio for the unresolved observations
+    :param macro_mag: array of length [num_images] with the macro magnification for each image
+    :param source_x: x-position of the supernova relative to the lens galaxy in arcsec (float)
+    :param source_y: y-position of the supernova relative to the lens galaxy in arcsec (float)
+    :param td_images: array of length [num_images] containing the relative time delays between the supernova images
+    :param time_delay_distance: time delay distance of the lens system in Mpc (float)
+    :param x_image: array of length [num_images] containing the x coordinates of the supernova images in arcsec
+    :param y_image: array of length [num_images] containing the y coordinates of the supernova images in arcsec
+    :param gamma_lens: power-law slope of the lens mass profile (float)
+    :param e1_lens: ellipticity component of the lens mass profile (float)
+    :param e2_lens: ellipticity component of the lens mass profile (float)
+    :param gamma1: component of external shear (float)
+    :param gamma2: component of external shear (float)
+    :param micro_kappa: array of length [num_images] containing the convergence/kappa for each image
+    :param micro_gamma: array of length [num_images] containing the shear for each image
+    :param micro_s: array of length [num_images] containing smooth matter fraction for each image
+    :param micro_peak: array of length [num_images] containing the microlensing contributions at light curve peak (i-band)
+    :param stretch: stretch parameter associated with the supernova light curve (float)
+    :param colour: colour parameter associated with the supernova light curve (float)
+    :param Mb: absolute magnitude of the unlensed supernova in the B band (float)
+    :param obs_start: MJD of the first observation (float)
+    :param obs_end: MJD of the last observation (float)
+    :param mult_method_peak: Bool. if True: detected with the multiplicity method at peak (corresponds to detection
+            numbers in Wojtak et al.)
+    :param mult_method: Bool. if True: detected with multiplicity method in actual observations
+    :param mult_method_micro: Bool. if True: detected with multiplicity method when microlensing is included
+    :param mag_method_peak: Bool. if True: detected with the magnification method at peak (corresponds to detection
+            numbers in Wojtak et al.)
+    :param mag_method: Bool. if True: detected with magnification method in actual observations
+    :param mag_method_micro: Bool. if True: detected with magnification method when microlensing is included
+    :param coords: right ascension and declination of the lensed supernova
+    :param obs_skybrightness: array of length N_observations containing the sky brightness (in magnitudes)
+    :param obs_psf: array of length N_observations containing the FWHM of the PSF for each observation (in arcsec)
+    :param obs_lim_mag: array of length N_observations containing the limiting magnitude (5 sigma depth)
+    :param obs_N_coadds: array of length N_observations with the number of coadds for each observation
+    :param survey: whether the sky coordinates belong to the WFD/DDF/galactic plane and pole region
+    :param rolling: only for WFD; whether the cadence does not rol or is in the active or background rolling region.
+    :param obs_mag_micro: array of shape [N_observations, N_images] that contains the apparent magnitudes including
+           microlensing magnifications and perturbations due to weather
+    :param mag_micro_error: array of shape [N_observations, N_images] containing the errors on the apparent magnitudes
+           for the microlensed light curves
+    :param obs_snr_micro: array of shape [N_observations, N_images] containing the S/N ratio for the microlensed curves
+    :param mag_unresolved_micro: array of len N_observations, containing the unresolved magnitudes for microlensing
+    :param mag_unresolved_micro_error: array of len N_observations, containing the magnitude errors for the unresolved
+           microlensed light curves
+    :param snr_unresolved_micro: array of len N_observations, containing the S/N of the unresolved microlensed curves
+    :param peak_magnitudes: array containing the unresolved peak apparent magnitudes in each band
+    :param peak_magnitudes_micro: array containing the unresolved peak apparent magnitudes in each band (with microlensing)
